@@ -159,11 +159,14 @@ class TileLayer(BaseLayer):
                                                         group=self.group,
                                                         usage="static",
                                                         )
+        deletes = []
         for key in self.sprites.keys():
             if key not in in_use:
-                if self.sprites[key] is not None:
-                    self.sprites[key].delete()
-                del self.sprites[key]
+                deletes.append(key)
+        for key in deletes:
+            if self.sprites[key] is not None:
+                self.sprites[key].delete()
+            del self.sprites[key]
 
 
 class ObjectGroup(BaseLayer):
