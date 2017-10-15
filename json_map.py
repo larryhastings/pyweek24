@@ -38,6 +38,20 @@ from pyglet import gl
 
 __all__ = ['Map', "TileLayer", "ObjectGroup",]
 
+
+def calculate_columns(image_width, tile_width, margin, spacing):
+    # works fine for rows too!
+
+    image_width -= margin * 2
+    if image_width < tile_width:
+        return 0
+    if image_width == tile_width:
+        return 1
+    columns = ((image_width - tile_width) // (tile_width + spacing)) + 1
+    assert ((columns * tile_width) + (spacing * (columns  - 1))) == image_width
+    return columns
+
+
 def get_texture_sequence(filename, tilewidth=32, tileheight=32, margin=1, spacing=1, nearest=False):
     """Returns a texture sequence of a grid generated from a tile set."""
 
@@ -45,14 +59,19 @@ def get_texture_sequence(filename, tilewidth=32, tileheight=32, margin=1, spacin
     region = image.get_region(margin, margin, image.width-margin*2, image.height-margin*2)
     import traceback
     traceback.print_stack()
-    print(f"WE DID IT {region.height}/{tileheight} = {int(region.height/tileheight)}, {region.width}/{tilewidth} = {int(region.width/tilewidth)}, margin {margin} spacing {spacing}")
+
+    # we've already thrown away the margins
+    rows = calculate_columns(region.height, tileheight, margin=0, spacing=spacing)
+    cols = calculate_columns(region.width, tilewidth, margin=0, spacing=spacing)
 
     grid = pyglet.image.ImageGrid(region,
-                                  int(region.height/tileheight),
-                                  int(region.width/tilewidth),
+                                  rows,
+                                  cols,
                                   row_padding=spacing,
                                   column_padding=spacing,
                                   )
+
+    print(f"WE DID IT grid {grid} rows {grid.rows} cols {grid.columns}")
 
     texture = grid.get_texture_sequence()
 
@@ -254,8 +273,8 @@ class Tileset(object):
         self.data = data
 
         # used to convert coordinates of the grid
-        self.columns = (self.data["imagewidth"]-self.data["spacing"]*2)//(self.data["tilewidth"]+self.data["margin"])
-        self.rows = (self.data["imageheight"]-self.data["spacing"]*2)//(self.data["tileheight"]+self.data["margin"])
+        self.columns = calculate_columns(self.data["imagewidth"], self.data["tilewidth"], spacing=self.data["spacing"], margin=self.data["margin"])
+        self.rows = calculate_columns(self.data["imageheight"], self.data["tileheight"], spacing=self.data["spacing"], margin=self.data["margin"])
         print(f'FIRST STEP TILESET ROWS ({self.data["imageheight"]}-{self.data["spacing"]}*2) / {self.data["tileheight"]}-{self.data["margin"]} = {self.rows} COLS {self.columns}')
 
         # the image will be accessed using pyglet resources

@@ -1,0 +1,16 @@
+tiled
+    margin:
+        how many pixels to throw away on the top/left/right/bottom borders
+        of the entire image
+    spacing:
+        how many pixels to throw away between each tile
+
+    e.g. for the Kenney "roguelike_transparent" tile set,
+    you want 16x16 tiles, with a spacing of 1
+    (don't throw away any pixels along the top/left/right/bottom of
+    the image, and throw away 1 pixel between each tile, both x and y)
+
+   roguelike actual tileset size is 57 columns x 31 rows
+	image is 968 x 526 with margin of 1
+		16*57 + 56 = 968
+		16*31 + 31 = 526
