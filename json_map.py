@@ -203,12 +203,13 @@ class ObjectGroup(BaseLayer):
 
             x = int(obj["x"])//self.map.data["tilewidth"]
             y = int(obj["y"])//self.map.data["tileheight"]-1
-            if (x, y) not in self._xy_index:
-                self._xy_index[x, y] = []
+            coordinate = (x, y)
+            if coordinate not in self._xy_index:
+                self._xy_index[coordinate] = []
 
-            self._index[name].append(self.objects[-1])
-            self._index_type[otype].append(self.objects[-1])
-            self._xy_index[x, y].append(self.objects[-1])
+            self._index[name].append(obj)
+            self._index_type[otype].append(obj)
+            self._xy_index[coordinate].append(obj)
 
         # XXX: is this useful AT ALL?
         self.objects.sort(key=lambda obj: obj["x"]+obj["y"]*self.map.data["width"])
