@@ -4,6 +4,7 @@ import json_map
 import lepton
 import math
 import os
+import pprint
 # pip3.6 install pyglet
 import pyglet.resource
 import pyglet.window.key
@@ -29,6 +30,9 @@ pyglet.resource.reindex()
 
 
 def vector_clamp(v, other):
+    """
+    Clamp vector v so it's 
+    """
     if other.x == 0:
         x = 0
     elif other.x < 0:
@@ -77,6 +81,8 @@ class Level:
             ))
 
         self.foreground_sprite_group = pyglet.graphics.OrderedGroup(self.map.last_group + 1)
+        self.construct_collision_geometry()
+       
 
     def load(self, basename):
         # we should always save the tmx file
@@ -97,7 +103,67 @@ class Level:
             self.map = json_map.Map.load_json(f)
 
         self.tiles = tmx.TileMap.load(tmx_path)
+
         return self.map
+
+    def construct_collision_geometry(self):
+        x = 0
+        y = 0
+
+        # pass 1: RLE encode horizontal runs of tiles into rectangles
+        in_rect = False
+        startx = None
+        rects = set()
+
+        def finish_rect():
+            nonlocal x
+            nonlocal y
+            nonlocal startx
+            nonlocal in_rect
+            in_rect = False
+            rect = (startx, y, x, y+16)
+            rects.add(rect)
+
+        for y in range(self.tiles.height):
+            y *= self.tiles.tileheight
+            for x in range(self.tiles.width):
+                x *= self.tiles.tilewidth
+                tile = self.collision_tile_at(x, y)
+                if tile:
+                    if not in_rect:
+                        in_rect = True
+                        startx = x
+                elif in_rect:
+                    finish_rect()
+            if in_rect:
+                x += 1
+                finish_rect()
+
+        # pass 2: merge rectangles down where possible
+        # sort the rects so we find the top rect first
+        final_rects = []
+        sort_by_y = lambda rect: (rect[1], rect[0])
+        sorted_rects = list(reversed(sorted(rects, key=sort_by_y)))
+        while sorted_rects:
+            rect = sorted_rects.pop()
+            if rect not in rects:
+                continue
+            start_x, start_y, end_x, end_y = rect
+            new_start_y = start_y
+            new_end_y = end_y
+            while True:
+                new_start_y += 16
+                new_end_y += 16
+                nextrect = (start_x, new_start_y, end_x, new_end_y)
+                if nextrect not in rects:
+                    break
+                rects.remove(nextrect)
+                end_y = new_end_y
+            final_rects.append((start_x, start_y, end_x, end_y))
+
+        # final_rects.sort(key=sort_by_y)
+        # print("COLLISION RECTS")
+        # pprint.pprint(final_rects)
 
 
     def on_draw(self):
