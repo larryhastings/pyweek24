@@ -1,0 +1,3 @@
+* do we need tsx? it looks like json_map will tell us the tile object at
+  coordinate (x, y), which is all we need for collision
+
