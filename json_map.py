@@ -137,12 +137,12 @@ class TileLayer(BaseLayer):
                 yield f
                 f += s
 
-        in_use = []
+        in_use = set()
         for j in yrange(y, y+h+th, th):
             py = j//th
             for i in yrange(x, x+w+tw, tw):
                 px = i//tw
-                in_use.append((px, py))
+                in_use.add((px, py))
                 if (px, py) not in self.sprites:
                     try:
                         texture = self.map.get_texture(self[px, py])
@@ -238,13 +238,13 @@ class ObjectGroup(BaseLayer):
         tw = self.map.data["tilewidth"]
         th = self.map.data["tileheight"]
 
-        in_use = []
+        in_use = set()
         for obj in self.objects:
             if x-tw < obj["x"] < x+w+tw and y-th < obj["y"] < y+h+th:
                 if not obj["visible"]:
                     continue
                 if "gid" in obj:
-                    in_use.append((obj["x"], obj["y"]))
+                    in_use.add((obj["x"], obj["y"]))
                     try:
                         texture = self.map.get_texture(obj["gid"])
                         tileoffset = self.map.get_tileoffset(obj["gid"])

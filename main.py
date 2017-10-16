@@ -120,17 +120,19 @@ class Level:
         self.map.set_viewport(0, 0, window.width, window.height)
 
         self.tiles = tmx.TileMap.load("prototype.tmx")
-        self.collision_tiles = self.tiles.layers[1].tiles
+        self.background_tiles, self.collision_tiles, self.player_position_tiles = (layer.tiles for layer in self.tiles.layers)
         self.upper_left = Vector2D(0, 0)
         self.lower_right = Vector2D(
             self.tiles.width * self.tiles.tilewidth,
             self.tiles.height * self.tiles.tileheight,
             )
 
+        self.foreground_sprite_group = pyglet.graphics.OrderedGroup(self.map.last_group + 1)
+
     def draw(self):
         self.map.draw()
 
-    def collision_tile_at(self, x, y=None):
+    def position_to_tile_index(self, x, y=None):
         if y is None:
             assert isinstance(x, Vector2D)
             y = x.y
@@ -138,7 +140,17 @@ class Level:
         index = int(((y // self.tiles.tileheight) * (self.tiles.width)) + 
             (x // self.tiles.tilewidth))
         assert index < len(self.collision_tiles)
-        return self.collision_tiles[index].gid
+        return index
+
+    def tile_index_to_position(self, index):
+        y = (index // self.tiles.width)
+        x = index - (y * self.tiles.width) 
+        y *= self.tiles.tileheight
+        x *= self.tiles.tilewidth
+        return Vector2D(x, y)
+
+    def collision_tile_at(self, x, y=None):
+        return self.collision_tiles[self.position_to_tile_index(x, y)].gid
 
 
 level = Level()
@@ -150,13 +162,26 @@ vector_45degrees = Vector2D(sin_45degrees, sin_45degrees)
 
 class Player:
     def __init__(self):
-        self.position = Vector2D(50, 50)
+        # determine position based on first nonzero tile
+        # found in player starting position layer
+        for i, tile in enumerate(level.player_position_tiles):
+            if tile.gid:
+                # print("FOUND PLAYER TILE AT", i, level.tile_index_to_position(i))
+                self.position = level.tile_index_to_position(i)
+                break
+        else:
+            self.position = Vector2D(0, 0)
+        # adjust player position
+        # TODO why is this what we wanted?!
+        self.position.y += level.tiles.tileheight 
+
         self.desired_speed = Vector2D(0, 0)
         self.normalized_desired_speed = Vector2D(0, 0)
         self.speed_multiplier = 10
         self.speed = Vector2D(0, 0)
         self.acceleration_frames = 20 # 20/60 of a second to get to full speed
         self.movement_keys = set()
+        # coordinate system has (0, 0) at upper left
         self.movement_vectors = {
             key.UP:    Vector2D(0, -1),
             key.DOWN:  Vector2D(0, 1),
@@ -170,13 +195,16 @@ class Player:
             key.RIGHT: key.LEFT
             }
 
+        self.image = pyglet.image.load("player.png")
+        self.sprite = pyglet.sprite.Sprite(self.image, batch=level.map.batch, group=level.foreground_sprite_group)
+
     def calculate_normalized_desired_speed(self):
         if not (self.desired_speed.x and self.desired_speed.y):
             self.normalized_desired_speed = self.desired_speed
         else:
             self.normalized_desired_speed = self.desired_speed * vector_45degrees
         self.normalized_desired_speed *= self.speed_multiplier
-        print("normalized desired speed is now", self.normalized_desired_speed)
+        # print("normalized desired speed is now", self.normalized_desired_speed)
 
     def on_key_press(self, symbol, modifiers):
         if game.paused:
@@ -205,14 +233,16 @@ class Player:
             self.calculate_normalized_desired_speed()
             return pyglet.event.EVENT_HANDLED
 
-    def update_screen(self):
+    def on_player_move(self):
+        self.sprite.x = self.position.x
+        self.sprite.y = window.height - self.position.y - 1
         level.map.set_focus(self.position.x, self.position.y)
 
     def on_update(self, dt):
         # TODO
         # actually use dt here
         # instead of assuming it's 1/60 of a second
-        print("PLAYER UPDATE", self.speed, self.normalized_desired_speed)
+        # print("PLAYER UPDATE", self.speed, self.normalized_desired_speed)
         if self.speed != self.normalized_desired_speed:
             delta = self.normalized_desired_speed / self.acceleration_frames
             self.speed += delta
@@ -238,16 +268,18 @@ class Player:
                         new_position.x = self.position.x
                     else:
                         new_position.y = self.position.y
-            print("new position", new_position)
+            # print("new position", new_position)
             if self.position != new_position:
                 self.position = new_position
-                print("position now", self.position)
-                self.update_screen()
+                # print("position now", self.position)
+                self.on_player_move()
 
+        def on_draw():
+            pass
 
 
 player = Player()
-player.update_screen()
+player.on_player_move()
 
 
 
