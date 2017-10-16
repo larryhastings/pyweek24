@@ -47,7 +47,6 @@ def vector_clamp(v, other):
 
 
 
-
 class Game:
     def __init__(self):
         self.paused = False
@@ -63,6 +62,7 @@ class Game:
             self.pause_label.draw()
 
 game = Game()
+
 
 class Level:
     def __init__(self, basename):
@@ -99,7 +99,6 @@ class Level:
         self.tiles = tmx.TileMap.load(tmx_path)
         return self.map
 
-
     def on_draw(self):
         self.map.draw()
 
@@ -108,14 +107,14 @@ class Level:
             assert isinstance(x, Vector)
             y = x.y
             x = x.x
-        index = int(((y // self.tiles.tileheight) * (self.tiles.width)) + 
+        index = int(((y // self.tiles.tileheight) * (self.tiles.width)) +
             (x // self.tiles.tilewidth))
         assert index < len(self.collision_tiles)
         return index
 
     def tile_index_to_position(self, index):
         y = (index // self.tiles.width)
-        x = index - (y * self.tiles.width) 
+        x = index - (y * self.tiles.width)
         y *= self.tiles.tileheight
         x *= self.tiles.tilewidth
         return Vector((x, y))
@@ -375,21 +374,23 @@ spark_tex = image.load(os.path.join(os.path.dirname(__file__), 'flare3.png')).ge
 spark_texturizer = SpriteTexturizer(spark_tex.id)
 trail_texturizer = SpriteTexturizer(create_point_texture(8, 50))
 
+
 class Kaboom:
-    
     lifetime = 5
 
-    def __init__(self):
+    def __init__(self, pos):
         color=(uniform(0,1), uniform(0,1), uniform(0,1), 1)
         while max(color[:3]) < 0.9:
             color=(uniform(0,1), uniform(0,1), uniform(0,1), 1)
 
+        x, y = pos
+
         spark_emitter = StaticEmitter(
             template=Particle(
-                position=(uniform(-50, 50), uniform(-30, 30), uniform(-30, 30)), 
-                color=color), 
+                position=(uniform(x - 5, x + 5), uniform(y - 5, y + 5), 0),
+                color=color),
             deviation=Particle(
-                velocity=(gauss(0, 5), gauss(0, 5), gauss(0, 5)),
+                velocity=(gauss(0, 5), gauss(0, 5), 0),
                 age=1.5),
             velocity=domain.Sphere((0, gauss(40, 20), 0), 60, 60))
 
@@ -423,11 +424,11 @@ class Kaboom:
             renderer=PointRenderer(10, trail_texturizer))
 
         pyglet.clock.schedule_once(self.die, self.lifetime * 2)
-    
+
     def reduce_trail(self, dt=None):
         if self.trail_emitter.rate > 0:
             self.trail_emitter.rate -= 1
-    
+
     def die(self, dt=None):
         default_system.remove_group(self.sparks)
         default_system.remove_group(self.trails)
@@ -461,22 +462,21 @@ default_system.add_global_controller(
 MEAN_FIRE_INTERVAL = 3.0
 
 def fire(dt=None):
-    Kaboom()
+    x = player.position.x
+    y = window.height - player.position.y - 1
+    Kaboom((x, y))
     pyglet.clock.schedule_once(fire, expovariate(1.0 / (MEAN_FIRE_INTERVAL - 1)) + 1)
+
 
 fire()
 pyglet.clock.schedule_interval(default_system.update, (1.0/30.0))
 pyglet.clock.set_fps_limit(None)
 
+
 def fire_on_draw():
     global yrot
-    # window.clear()
-    glPushMatrix()
-    glLoadIdentity()
-    glTranslatef(0, 0, -100)
-    glRotatef(yrot, 0.0, 1.0, 0.0)
-    default_system.draw()
-    glPopMatrix()
+    with level.map:
+        default_system.draw()
     '''
     glBindTexture(GL_TEXTURE_2D, 1)
     glEnable(GL_TEXTURE_2D)
