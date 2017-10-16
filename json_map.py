@@ -458,10 +458,15 @@ class Map(object):
         fileobj.close()
         return Map(data, nearest)
 
-    def draw(self):
-        """Applies transforms and draws the batch."""
+    def __enter__(self):
         gl.glPushMatrix()
         gl.glTranslatef(-self.x, self.y, 0)
-        self.batch.draw()
+
+    def __exit__(self, *_):
         gl.glPopMatrix()
+
+    def draw(self):
+        """Applies transforms and draws the batch."""
+        with self:
+            self.batch.draw()
 
