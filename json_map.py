@@ -142,14 +142,15 @@ class TileLayer(BaseLayer):
             py = j//th
             for i in yrange(x, x+w+tw, tw):
                 px = i//tw
-                in_use.add((px, py))
-                if (px, py) not in self.sprites:
+                coordinate = (px, py)
+                in_use.add(coordinate)
+                if coordinate not in self.sprites:
                     try:
                         texture = self.map.get_texture(self[px, py])
                     except (KeyError, IndexError):
-                        self.sprites[(px, py)] = None
+                        self.sprites[coordinate] = None
                     else:
-                        self.sprites[(px, py)] = Sprite(texture,
+                        self.sprites[coordinate] = Sprite(texture,
                                                         x=(px*tw),
                                                         y=h-(py*th)-th,
                                                         batch=self.map.batch,
@@ -240,11 +241,13 @@ class ObjectGroup(BaseLayer):
             if x-tw < obj["x"] < x+w+tw and y-th < obj["y"] < y+h+th:
                 if not obj["visible"]:
                     continue
-                if "gid" in obj:
-                    in_use.add((obj["x"], obj["y"]))
+                gid = obj.get("gid")
+                if gid:
+                    coordinate = (obj["x"], obj["y"])
+                    in_use.add(coordinate)
                     try:
-                        texture = self.map.get_texture(obj["gid"])
-                        tileoffset = self.map.get_tileoffset(obj["gid"])
+                        texture = self.map.get_texture(gid)
+                        tileoffset = self.map.get_tileoffset(gid)
                     except (IndexError, KeyError):
                         sprite = None
                     else:
@@ -256,12 +259,12 @@ class ObjectGroup(BaseLayer):
                                         usage="static",
                                         )
 
-                    self.sprites[(obj["x"], obj["y"])] = sprite
+                    self.sprites[coordinate] = sprite
 
-        for key in list(self.sprites):
-            if key not in in_use:
-                self.sprites[key].delete()
-                del self.sprites[key]
+        unused_keys = set(self.sprites) - in_use
+        for key in unused_keys:
+            o = self.sprites.pop(key)
+            o.delete()
 
 
 class Tileset(object):
