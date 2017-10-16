@@ -126,26 +126,11 @@ class Game:
 
 game = Game()
 
-def load_level(json):
-    # we should always save the tmx file
-    # then export the json file
-    # this function will detect that that's true
-    assert json.endswith(".json")
-    tmx = json[:-4] + "tmx"
-    json_stat = os.stat(json)
-    tmx_stat = os.stat(tmx)
-    if tmx_stat.st_mtime >= json_stat.st_mtime:
-        sys.exit(f"{json} map file out of date! Export JSON from {tmux}.")
-
-    fd = pyglet.resource.file(json)
-    return json_map.Map.load_json(fd)
-
 class Level:
-    def __init__(self):
-        self.map = load_level("prototype.json")
-        self.map.set_viewport(0, 0, window.width, window.height)
+    def __init__(self, basename):
+        self.load(basename)
 
-        self.tiles = tmx.TileMap.load("prototype.tmx")
+        self.map.set_viewport(0, 0, window.width, window.height)
         self.background_tiles, self.collision_tiles, self.player_position_tiles = (layer.tiles for layer in self.tiles.layers)
         self.upper_left = Vector2D(0, 0)
         self.lower_right = Vector2D(
@@ -154,6 +139,28 @@ class Level:
             )
 
         self.foreground_sprite_group = pyglet.graphics.OrderedGroup(self.map.last_group + 1)
+
+    def load(self, basename):
+        # we should always save the tmx file
+        # then export the json file
+        # this function will detect that that's true
+        json_path = basename + ".json"
+        tmx_path = basename + ".tmx"
+        try:
+            json_stat = os.stat(json_path)
+            tmx_stat = os.stat(tmx_path)
+        except FileNotFoundError:
+            sys.exit(f"Couldn't find both json and tmx for basename {basename}!")
+
+        if tmx_stat.st_mtime >= json_stat.st_mtime:
+            sys.exit(f"{json_path} map file out of date! Export JSON from {tmx_path}.")
+
+        with pyglet.resource.file(json_path) as f:
+            self.map = json_map.Map.load_json(f)
+
+        self.tiles = tmx.TileMap.load(tmx_path)
+        return self.map
+
 
     def on_draw(self):
         self.map.draw()
@@ -179,7 +186,7 @@ class Level:
         return self.collision_tiles[self.position_to_tile_index(x, y)].gid
 
 
-level = Level()
+level = Level("prototype")
 
 
 sin_45degrees = math.sin(math.pi / 4)
@@ -236,28 +243,38 @@ class Player:
         if game.paused:
             return
         vector = self.movement_vectors.get(symbol)
-        if vector:
-            self.movement_keys.add(symbol)
-            self.desired_speed += vector
-            # if we press RIGHT while we're already pressing LEFT,
-            # cancel out the LEFT (and ignore the keyup on it later)
-            opposite = self.movement_opposites[symbol]
-            if opposite in self.movement_keys:
-                opposite_vector = self.movement_vectors[opposite]
-                self.desired_speed -= opposite_vector
-                self.movement_keys.remove(opposite)
-            self.calculate_normalized_desired_speed()
-            return pyglet.event.EVENT_HANDLED
+        if not vector:
+            return
+        self.movement_keys.add(symbol)
+        self.desired_speed += vector
+        # if we press RIGHT while we're already pressing LEFT,
+        # cancel out the LEFT (and ignore the keyup on it later)
+        #
+        # TODO:
+        # press-and-hold right
+        # then, press-and-hold left
+        # then, release left
+        # you should resume going right!
+        opposite = self.movement_opposites[symbol]
+        if opposite in self.movement_keys:
+            opposite_vector = self.movement_vectors[opposite]
+            self.desired_speed -= opposite_vector
+            self.movement_keys.remove(opposite)
+        self.calculate_normalized_desired_speed()
+        return pyglet.event.EVENT_HANDLED
 
     def on_key_release(self, symbol, modifiers):
         if game.paused:
+            return
+        vector = self.movement_vectors.get(symbol)
+        if not vector:
             return
         if symbol in self.movement_keys:
             self.movement_keys.remove(symbol)
             vector = self.movement_vectors.get(symbol)
             self.desired_speed -= vector
             self.calculate_normalized_desired_speed()
-            return pyglet.event.EVENT_HANDLED
+        return pyglet.event.EVENT_HANDLED
 
     def on_player_move(self):
         self.sprite.x = self.position.x
