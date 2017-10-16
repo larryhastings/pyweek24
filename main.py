@@ -1,14 +1,17 @@
+# checked in, got from https://github.com/reidrac/pyglet-tiled-json-map.git
+import json_map
 import math
+import os
 # pip3.6 install pyglet
 import pyglet
 import pyglet.resource
 import pyglet.window.key
+import sys
 # pip3.6 install tmx
 import tmx
-# https://github.com/reidrac/pyglet-tiled-json-map.git
-import json_map
 
 key = pyglet.window.key
+EVENT_HANDLED = pyglet.event.EVENT_HANDLED
 
 window = pyglet.window.Window()
 
@@ -111,12 +114,35 @@ class Game:
     def __init__(self):
         self.paused = False
 
+        self.pause_label = pyglet.text.Label('[Pause]',
+                          font_name='Times New Roman',
+                          font_size=64,
+                          x=window.width//2, y=window.height//2,
+                          anchor_x='center', anchor_y='center')
+
+    def on_draw(self):
+        if self.paused:
+            self.pause_label.draw()
+
 game = Game()
+
+def load_level(json):
+    # we should always save the tmx file
+    # then export the json file
+    # this function will detect that that's true
+    assert json.endswith(".json")
+    tmx = json[:-4] + "tmx"
+    json_stat = os.stat(json)
+    tmx_stat = os.stat(tmx)
+    if tmx_stat.st_mtime >= json_stat.st_mtime:
+        sys.exit(f"{json} map file out of date! Export JSON from {tmux}.")
+
+    fd = pyglet.resource.file(json)
+    return json_map.Map.load_json(fd)
 
 class Level:
     def __init__(self):
-        fd = pyglet.resource.file("prototype.json")
-        self.map = json_map.Map.load_json(fd)
+        self.map = load_level("prototype.json")
         self.map.set_viewport(0, 0, window.width, window.height)
 
         self.tiles = tmx.TileMap.load("prototype.tmx")
@@ -129,7 +155,7 @@ class Level:
 
         self.foreground_sprite_group = pyglet.graphics.OrderedGroup(self.map.last_group + 1)
 
-    def draw(self):
+    def on_draw(self):
         self.map.draw()
 
     def position_to_tile_index(self, x, y=None):
@@ -247,7 +273,7 @@ class Player:
             delta = self.normalized_desired_speed / self.acceleration_frames
             self.speed += delta
             self.speed.clamp(self.normalized_desired_speed)
-            print("SPEED IS NOW", self.speed)
+            # print("SPEED IS NOW", self.speed)
         if self.speed:
             new_position = self.position + self.speed
             if new_position.x < level.upper_left.x:
@@ -274,8 +300,9 @@ class Player:
                 # print("position now", self.position)
                 self.on_player_move()
 
-        def on_draw():
-            pass
+    def on_draw(self):
+        # we're actually drawn as part of the batch for the tiles
+        pass
 
 
 player = Player()
@@ -293,12 +320,12 @@ def keypress(key):
 
 @keypress(key.ESCAPE)
 def key_escape(pressed):
-    print("ESC", pressed)
+    # print("ESC", pressed)
     pyglet.app.exit()
 
 @keypress(key.SPACE)
 def key_escape(pressed):
-    print("SPACE", pressed)
+    # print("SPACE", pressed)
     if pressed:
         game.paused = not game.paused
 
@@ -324,29 +351,47 @@ def key_lctrl(pressed):
     print("LEFT CONTROL", pressed)
 
 
+key_remapper = {
+    key.W: key.UP,
+    key.S: key.DOWN,
+    key.A: key.LEFT,
+    key.D: key.RIGHT,
+    }
+
+
 @window.event
 def on_key_press(symbol, modifiers):
     # ignoring modifiers for now
+    symbol = key_remapper.get(symbol, symbol)
+    # calling it manually instead of stacking
+    # so we can benefit from remapped keys
+    if player.on_key_press(symbol, modifiers) == EVENT_HANDLED:
+        return
     handler = keypress_handlers.get(symbol)
     if handler:
         handler(True)
-        return pyglet.event.EVENT_HANDLED
+        return EVENT_HANDLED
 
 @window.event
 def on_key_release(symbol, modifiers):
     # ignoring modifiers for now
+    symbol = key_remapper.get(symbol, symbol)
+    # calling it manually instead of stacking
+    # so we can benefit from remapped keys
+    if player.on_key_release(symbol, modifiers) == EVENT_HANDLED:
+        return
     handler = keypress_handlers.get(symbol)
     if handler:
         handler(False)
-        return pyglet.event.EVENT_HANDLED
+        return EVENT_HANDLED
 
-window.push_handlers(player.on_key_press)
-window.push_handlers(player.on_key_release)
 
 @window.event
 def on_draw():
     window.clear()
-    level.draw()
+    level.on_draw()
+    player.on_draw()
+    game.on_draw()
 
 
 

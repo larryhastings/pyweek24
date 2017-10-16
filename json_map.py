@@ -146,17 +146,18 @@ class TileLayer(BaseLayer):
                 in_use.add(coordinate)
                 if coordinate not in self.sprites:
                     try:
-                        texture = self.map.get_texture(self[px, py])
+                        texture = self.map.get_texture(self[coordinate])
+                        sprite = Sprite(texture,
+                                        x=(px*tw),
+                                        y=h-(py*th)-th,
+                                        batch=self.map.batch,
+                                        group=self.group,
+                                        usage="static",
+                                        )
                     except (KeyError, IndexError):
-                        self.sprites[coordinate] = None
-                    else:
-                        self.sprites[coordinate] = Sprite(texture,
-                                                        x=(px*tw),
-                                                        y=h-(py*th)-th,
-                                                        batch=self.map.batch,
-                                                        group=self.group,
-                                                        usage="static",
-                                                        )
+                        sprite = None
+                    self.sprites[coordinate] = sprite
+
         unused_keys = set(self.sprites) - in_use
         for key in unused_keys:
             o = self.sprites.pop(key)
@@ -248,9 +249,6 @@ class ObjectGroup(BaseLayer):
                     try:
                         texture = self.map.get_texture(gid)
                         tileoffset = self.map.get_tileoffset(gid)
-                    except (IndexError, KeyError):
-                        sprite = None
-                    else:
                         sprite = Sprite(texture,
                                         x=obj["x"]+tileoffset[0],
                                         y=self.h-obj["y"]+tileoffset[1],
@@ -258,6 +256,8 @@ class ObjectGroup(BaseLayer):
                                         group=self.group,
                                         usage="static",
                                         )
+                    except (IndexError, KeyError):
+                        sprite = None
 
                     self.sprites[coordinate] = sprite
 
