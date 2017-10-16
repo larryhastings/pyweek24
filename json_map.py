@@ -57,8 +57,6 @@ def get_texture_sequence(filename, tilewidth=32, tileheight=32, margin=1, spacin
 
     image = pyglet.resource.image(filename)
     region = image.get_region(margin, margin, image.width-margin*2, image.height-margin*2)
-    import traceback
-    traceback.print_stack()
 
     # we've already thrown away the margins
     rows = calculate_columns(region.height, tileheight, margin=0, spacing=spacing)
@@ -71,7 +69,6 @@ def get_texture_sequence(filename, tilewidth=32, tileheight=32, margin=1, spacin
                                   column_padding=spacing,
                                   )
 
-    print(f"WE DID IT grid {grid} rows {grid.rows} cols {grid.columns}")
 
     texture = grid.get_texture_sequence()
 
@@ -278,7 +275,6 @@ class Tileset(object):
         # used to convert coordinates of the grid
         self.columns = calculate_columns(self.data["imagewidth"], self.data["tilewidth"], spacing=self.data["spacing"], margin=self.data["margin"])
         self.rows = calculate_columns(self.data["imageheight"], self.data["tileheight"], spacing=self.data["spacing"], margin=self.data["margin"])
-        print(f'FIRST STEP TILESET ROWS ({self.data["imageheight"]}-{self.data["spacing"]}*2) / {self.data["tileheight"]}-{self.data["margin"]} = {self.rows} COLS {self.columns}')
 
         # the image will be accessed using pyglet resources
         self.image = os.path.basename(self.data["image"])
@@ -351,7 +347,6 @@ class Map(object):
         self.tileoffset_index = {}
         self.texture_index = {}
         for tileset in self.tilesets.values():
-            print(f"TILESET {tileset} texture {tileset.texture} rows {tileset.rows} columns {tileset.columns}")
             for y in range(tileset.rows):
                 for x in range(tileset.columns):
                     self.texture_index[x+y*tileset.columns+tileset.data["firstgid"]] = \

@@ -12,5 +12,20 @@ tiled
 
    roguelike actual tileset size is 57 columns x 31 rows
 	image is 968 x 526 with margin of 1
-		16*57 + 56 = 968
+        (tilewidth*cols) + (spacing*(cols-1)) = width
+        16*57 + 56 = 968
+        (tileheight*rows) + (spacing*(rows-1)) = height
 		16*31 + 31 = 526
+
+tilesets
+    https://kenney.itch.io/
+
+    currently using "roguelike/rpg pack"
+        http://kenney.nl/assets/roguelike-rpg-pack
+
+
+lighting
+    http://www.redblobgames.com/articles/visibility/
+
+hexgrids (not doing this)
+    http://www.redblobgames.com/grids/hexagons/
