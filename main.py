@@ -128,7 +128,7 @@ class Level:
         # pass 1: RLE encode horizontal runs of tiles into rectangles
         in_rect = False
         startx = None
-        rects = set()
+        x_rects = set()
 
         def finish_rect():
             nonlocal x
@@ -136,13 +136,11 @@ class Level:
             nonlocal startx
             nonlocal in_rect
             in_rect = False
-            # chimpunk coordinate space
             rect = ((startx, y), (x, y+self.tiles.tileheight))
-            rects.add(rect)
+            x_rects.add(rect)
 
         for y in range(0, self.tiles.height * self.tiles.tileheight, self.tiles.tileheight):
             for x in range(0, self.tiles.width * self.tiles.tilewidth, self.tiles.tilewidth):
-                # we convert to tile coordinate space here
                 tile = self.collision_tile_at(x, y)
                 if tile:
                     if not in_rect:
@@ -157,12 +155,15 @@ class Level:
         # pass 2: merge rectangles down where possible
         # sort the rects so we find the top rect first
         # rects are now in chipmunk coordinate space
-        final_rects = []
+        xy_rects = []
         sort_by_y = lambda box: (box[0][1], box[0][0])
-        sorted_rects = list(reversed(sorted(rects, key=sort_by_y)))
-        while sorted_rects:
-            rect = sorted_rects.pop()
-            if rect not in rects:
+        # we sort lowest y coord to the end
+        # so we can pop from the end and get the highest rect
+        sort_by_reverse_y = lambda box: (-box[0][1], box[0][0])
+        sorted_x_rects = list(sorted(x_rects, key=sort_by_reverse_y))
+        while sorted_x_rects:
+            rect = sorted_x_rects.pop()
+            if rect not in x_rects:
                 continue
             start, end = rect
             start_x, start_y = start
@@ -173,22 +174,135 @@ class Level:
                 new_start_y += self.tiles.tileheight
                 new_end_y += self.tiles.tileheight
                 nextrect = ((start_x, new_start_y), (end_x, new_end_y))
-                if nextrect not in rects:
+                if nextrect not in x_rects:
                     break
-                rects.remove(nextrect)
+                x_rects.remove(nextrect)
                 end_y = new_end_y
-            final_rects.append((Vec2d(start_x, start_y), Vec2d(end_x, end_y)))
+            xy_rects.append(((start_x, start_y), (end_x, end_y)))
 
-        # final_rects.sort(key=sort_by_y)
-        # print("COLLISION RECTS")
-        # pprint.pprint(final_rects)
+        # pass 3:
+        # find all rects who touch each rect underneath (and vice-versa)
+        #
+        # note: we don't have to check if rects are touching on our left or right.
+        # if we were touching on the left or the right,
+        # then in pass 1 we would have been turned into 
+        # the same rect.
+        touching = {}
+        topdown_rects = list(xy_rects)
+        topdown_rects.sort(key=sort_by_reverse_y)
+        def r_as_tiles(r):
+            return ( (r[0][0]//16, r[0][1]//16), (r[1][0]//16, r[1][1]//16))
+        def r_as_tiles_str(r):
+            r = r_as_tiles(r)
+            return f"(({r[0][0]:2}, {r[0][1]:2}), ({r[1][0]:2}, {r[1][1]:2}))"
+        def r_touches(r, r2):
+            s = touching.get(r)
+            if not s:
+                s = set()
+                touching[r] = s
+            s.add(r2)
+            # print(f"{r_as_tiles_str(r)} TOUCHES {r_as_tiles_str(r2)}")
+        while topdown_rects:
+            r = topdown_rects.pop()
+            (x, y), (end_x, end_y) = r
+            skip_y = y
+            check_y = end_y
+            for r2 in reversed(topdown_rects):
+                (x2, y2), (end_x2, end_y2) = r2
+                if y2 < check_y:
+                    # colinear with us in tile map, cannot be touching, skip
+                    continue
+                if y2 != check_y:
+                    # too far away in y, all subsequent rects will be too far away, stop
+                    break
+
+                # this rect's top y meets our bottom y.
+                # but do we overlap in x?  ... easy!
+                # there are six possible scenarios:
+                #
+                # 1. rrrr        no overlap, r < r2
+                #         r2r2
+                #
+                # 2. rrrr           overlap, on the left side of r2
+                #      r2r2
+                #
+                # 3. rrrrrrrr       overlap, r2 is inside r
+                #      r2r2
+                #     
+                # 4.   rrrr         overlap, r is inside r2
+                #    r2r2r2r2
+                #
+                # 5.   rrrr         overlap, on the right side of r2
+                #    r2r2
+                #
+                # 6.      rrrr   no overlap, r > r2
+                #    r2r2
+                #
+                # so we just check 1 and 6.  if either is true,
+                # we don't overlap.  otherwise we do.
+                if not ((end_x <= x2) or (end_x2 <= x)):
+                    r_touches(r, r2)
+                    r_touches(r2, r)
+
+        # pass 4:
+        # pull out a rect and put it in a set.
+        # then pull out all rects that touch it and put them in the set too.
+        # and all rects that touch *that*.
+        # keep iterating until don't find any new rects.
+        # that's a blob.  repeat until no rects left.
+        final_rects = set(xy_rects)
+        blobs = []
+        while final_rects:
+            r = final_rects.pop()
+            # print(f"blob, starting with {r_as_tiles_str(r)}")
+            blob = set([r])
+            check = set([r])
+            while check:
+                check_next = set()
+                for r in check:
+                    neighbors = touching.get(r, ())
+                    for r2 in neighbors:
+                        if r2 not in blob:
+                            # print(f"  {r_as_tiles_str(r)} touches {r_as_tiles_str(r2)}")
+                            blob.add(r2)
+                            final_rects.remove(r2)
+                            check_next.add(r2)
+                check = check_next
+            blob = list(blob)
+            blob.sort(key=sort_by_y)
+            blobs.append(blob)
+
+        # print("COLLISION BLOBS")
+        # pprint.pprint(blobs)
+        print("Total collision blobs:", len(blobs))
+        print("Top-left corner of highest rect in each blob:")
+        blobs.sort(key=lambda blob:(blob[0][0][1], blob[0][0][0]))
+        for blob in blobs:
+            (x, y), (end_x, end_y) = r_as_tiles(blob[0])
+            print(f"    ({x:3}, {y:3})")
 
         self.space = pymunk.Space()
         self.draw_options = pymunk.pyglet_util.DrawOptions()
         self.space.gravity = (0, 0)
 
+        for blob in blobs:
+            (r0x, r0y), (r0end_x, r0end_y) = blob[0]
+            body = pymunk.Body(body_type=pymunk.Body.STATIC)
+            body.position = Vec2d(r0x, r0y)
+            self.space.add(body)
+            for r in blob:
+                (x, y), (end_x, end_y) = r
+                vertices = [
+                    (    x - r0x,     y - r0y),
+                    (end_x - r0x,     y - r0y),
+                    (end_x - r0x, end_y - r0y),
+                    (    x - r0x, end_y - r0y),
+                    ]
+                shape = pymunk.Poly(body, vertices)
+                self.space.add(shape)
+
         # chipmunk coordinate space is *pixel space*
-        def add_body_from_bb(rect):
+        def add_box_from_bb(rect):
             start, end = rect
             width = end.x - start.x
             height = end.y - start.y
@@ -200,17 +314,14 @@ class Level:
             shape = pymunk.Poly.create_box(body, (width, height))
             self.space.add(body, shape)
 
-        for rect in final_rects:
-            add_body_from_bb(rect)
-
         upper_left = Vec2d(-50, -50)
         lower_right = Vec2d((self.tiles.width * self.tiles.tilewidth) + 50, (self.tiles.height * self.tiles.tileheight) + 50)
 
         # bounding boxes around level geometry to trap the player inside the level
-        add_body_from_bb((upper_left, Vec2d(lower_right.x, 0)))
-        add_body_from_bb((upper_left, Vec2d(0, lower_right.y)))
-        add_body_from_bb((Vec2d(self.tiles.width * self.tiles.tilewidth, upper_left.y), lower_right))
-        add_body_from_bb((Vec2d(upper_left.x, self.tiles.height * self.tiles.tileheight), lower_right))
+        add_box_from_bb((upper_left, Vec2d(lower_right.x, 0)))
+        add_box_from_bb((upper_left, Vec2d(0, lower_right.y)))
+        add_box_from_bb((Vec2d(self.tiles.width * self.tiles.tilewidth, upper_left.y), lower_right))
+        add_box_from_bb((Vec2d(upper_left.x, self.tiles.height * self.tiles.tileheight), lower_right))
 
 
 
