@@ -97,11 +97,15 @@ class Level:
         self.collision_tiles, self.player_position_tiles = (layer.tiles for layer in self.tiles.layers)
         self.upper_left = Vec2d(vector_zero)
         self.lower_right = Vec2d(
-            self.tiles.width * self.tiles.tilewidth,
-            self.tiles.height * self.tiles.tileheight,
+            self.tiles.width,
+            self.tiles.height
             )
 
         self.foreground_sprite_group = pyglet.graphics.OrderedGroup(1)
+
+        self.space = pymunk.Space()
+        self.draw_options = pymunk.pyglet_util.DrawOptions()
+        self.space.gravity = (0, 0)
         self.construct_collision_geometry()
 
     def load(self, basename):
@@ -117,6 +121,10 @@ class Level:
         self.tiles = tmx.TileMap.load(tmx_path)
         self.maprenderer = MapRenderer(self.tiles)
         self.collision_gids = self.maprenderer.collision_gids
+        self.tilew = self.maprenderer.tilew
+
+    def map_to_world(self, x, y):
+        return x * self.tilew, y * self.tilew
 
     def construct_collision_geometry(self):
         """
@@ -134,11 +142,12 @@ class Level:
             nonlocal startx
             nonlocal in_rect
             in_rect = False
-            rect = ((startx, y), (x, y+self.tiles.tileheight))
+            rect = ((startx, y), (x, y + 1))
             x_rects.add(rect)
 
-        for y in range(0, self.tiles.height * self.tiles.tileheight, self.tiles.tileheight):
-            for x in range(0, self.tiles.width * self.tiles.tilewidth, self.tiles.tilewidth):
+        for y in range(0, self.tiles.height):
+            y = self.tiles.height - y - 1
+            for x in range(0, self.tiles.width):
                 tile = self.collision_tile_at(x, y)
                 if tile:
                     if not in_rect:
@@ -147,7 +156,7 @@ class Level:
                 elif in_rect:
                     finish_rect()
             if in_rect:
-                x += self.tiles.tilewidth
+                x += 1
                 finish_rect()
 
         # sort fns for sorting lists of rects
@@ -173,8 +182,8 @@ class Level:
             new_start_y = start_y
             new_end_y = end_y
             while True:
-                new_start_y += self.tiles.tileheight
-                new_end_y += self.tiles.tileheight
+                new_start_y += 1
+                new_end_y += 1
                 nextrect = ((start_x, new_start_y), (end_x, new_end_y))
                 if nextrect not in x_rects:
                     break
@@ -289,10 +298,6 @@ class Level:
         #     (x, y), (end_x, end_y) = r_as_tiles(blob[0])
         #     print(f"    ({x:3}, {y:3})")
 
-        self.space = pymunk.Space()
-        self.draw_options = pymunk.pyglet_util.DrawOptions()
-        self.space.gravity = (0, 0)
-
         for blob in blobs:
             (r0x, r0y), (r0end_x, r0end_y) = blob[0]
             body = pymunk.Body(body_type=pymunk.Body.STATIC)
@@ -346,16 +351,16 @@ class Level:
             assert len(x) == 2
             y = x[0]
             x = x[1]
-        index = int(((y // self.tiles.tileheight) * (self.tiles.width)) +
-            (x // self.tiles.tilewidth))
+        y = self.tiles.height - y - 1
+        index = y * self.tiles.width + x
         assert index < len(self.collision_tiles)
         return index
 
     def tile_index_to_position(self, index):
-        y = (index // self.tiles.width)
+        y = self.tiles.height - (index // self.tiles.width) - 1
         x = index - (y * self.tiles.width)
-        y *= self.tiles.tileheight
-        x *= self.tiles.tilewidth
+#        y *= self.tiles.tileheight
+#        x *= self.tiles.tilewidth
         return Vec2d(x, y)
 
     def collision_tile_at(self, x, y=None):
@@ -396,8 +401,8 @@ class Player:
         self.movement_keys = []
         # coordinate system has (0, 0) at upper left
         self.movement_vectors = {
-            key.UP:    vector_unit_y * -1,
-            key.DOWN:  vector_unit_y,
+            key.UP:    vector_unit_y,
+            key.DOWN:  vector_unit_y * -1,
             key.LEFT:  vector_unit_x * -1,
             key.RIGHT: vector_unit_x,
             }
@@ -409,16 +414,15 @@ class Player:
             }
 
         self.image = pyglet.image.load("player.png")
-        self.sprite = pyglet.sprite.Sprite(self.image, group=level.foreground_sprite_group)
+        self.sprite = pyglet.sprite.Sprite(self.image)
 
         # self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body.position = Vec2d(self.position.x, self.position.y)
         self.body.velocity_func = self.on_update_velocity
 
-        # make player a circle with diameter the same as tile width (and tile height)
-        assert level.tiles.tileheight == level.tiles.tilewidth
-        self.shape = pymunk.Circle(self.body, level.tiles.tilewidth >> 1)
+        # make player a circle with radius 0.4
+        self.shape = pymunk.Circle(self.body, 0.5)
         level.space.add(self.body, self.shape)
 
     def calculate_speed(self):
@@ -496,15 +500,11 @@ class Player:
         return pyglet.event.EVENT_HANDLED
 
     def on_player_move(self):
-        p = self.body.position
-        self.sprite.position = Vec2d(
-            p.x - (level.tiles.tilewidth >> 1),
-            window.height - p.y - (level.tiles.tileheight >> 1)
-            )
+        self.sprite.set_position(*level.map_to_world(*self.body.position))
         viewport.pos = self.sprite.position
 
     def on_update_velocity(self, body, gravity, damping, dt):
-        velocity = Vec2d(self.speed.x, self.speed.y) * 3
+        velocity = Vec2d(self.speed.x, self.speed.y) * 0.1
         body.velocity = velocity
         self.body.velocity = velocity
 
@@ -515,7 +515,6 @@ class Player:
         self.calculate_speed()
 
     def on_draw(self):
-        # we're actually drawn as part of the batch for the tiles
         self.sprite.draw()
 
 
@@ -606,8 +605,8 @@ def on_draw():
     window.clear()
     with viewport:
         level.on_draw()
-        player.on_draw()
         game.on_draw()
+        player.on_draw()
         default_system.draw()
 
 
@@ -615,7 +614,7 @@ def on_draw():
 def on_update(dt):
     if game.paused:
         return
-            
+
     player.on_update(dt)
     level.space.step(dt)
     player.on_player_move()
@@ -730,8 +729,7 @@ default_system.add_global_controller(
 MEAN_FIRE_INTERVAL = 3.0
 
 def fire(dt=None):
-    x = player.position.x
-    y = window.height - player.position.y - 1
+    x, y = player.sprite.position
     Kaboom((x, y))
     pyglet.clock.schedule_once(fire, expovariate(1.0 / (MEAN_FIRE_INTERVAL - 1)) + 1)
 

@@ -12,10 +12,18 @@ class Viewport:
         self.h = h
         self.pos = (0, 0)
 
+    def bounds(self):
+        """Return screen bounds as a tuple (l, r, b, t)."""
+        w2 = self.w // 2
+        h2 = self.h // 2
+        x, y = self.pos
+        return x - w2, x + w2, y - h2, y + h2
+
     def __enter__(self):
         gl.glPushMatrix()
+        gl.glLoadIdentity()
         x, y = self.pos
-        gl.glTranslatef(self.w // 2 - int(x), self.h - int(y), 0)
+        gl.glTranslatef(self.w // 2 - int(x), self.h // 2 - int(y), 0)
 
     def __exit__(self, *_):
         gl.glPopMatrix()
@@ -73,10 +81,11 @@ class MapRenderer:
                 if tile.gid == 0:
                     continue
                 y, x = divmod(i, self.width)
+                y = self.height - y - 1
                 sprite = pyglet.sprite.Sprite(
                     self.tiles[tile.gid],
                     x=x * self.tilew,
-                    y=self.height - y * self.tileh,
+                    y=y * self.tileh,
                     batch=self.batch,
                     usage="static"
                 )
