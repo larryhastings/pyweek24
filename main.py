@@ -1,17 +1,32 @@
-# checked in, got from https://github.com/reidrac/pyglet-tiled-json-map.git
-import json_map
-# built from source, removed "inline" from Group_kill_p in */group.h
-import lepton
+import io
 import math
 import os
 import pprint
+import sys
+
+# checked in, got from https://github.com/reidrac/pyglet-tiled-json-map.git
+import json_map
+
+# built from source, removed "inline" from Group_kill_p in */group.h
+import lepton
+
 # pip3.6 install pyglet
 import pyglet.resource
 import pyglet.window.key
+import pymunk.pyglet_util
+
+# pip3.6 install pymunk
+# GAAH
+tmp = sys.stdout
+sys.stdout = io.StringIO()
 import pymunk
-import sys
+sys.stdout = tmp
+del tmp
+from pymunk import Vec2d
+
 # pip3.6 install tmx
 import tmx
+
 # pip3.6 install wasabi.geom
 from wasabi.geom.vector import Vector, v
 from wasabi.geom.vector import zero as vector_zero
@@ -121,13 +136,13 @@ class Level:
             nonlocal startx
             nonlocal in_rect
             in_rect = False
-            rect = (startx, y, x, y+16)
+            # chimpunk coordinate space
+            rect = ((startx, y), (x, y+self.tiles.tileheight))
             rects.add(rect)
 
-        for y in range(self.tiles.height):
-            y *= self.tiles.tileheight
-            for x in range(self.tiles.width):
-                x *= self.tiles.tilewidth
+        for y in range(0, self.tiles.height * self.tiles.tileheight, self.tiles.tileheight):
+            for x in range(0, self.tiles.width * self.tiles.tilewidth, self.tiles.tilewidth):
+                # we convert to tile coordinate space here
                 tile = self.collision_tile_at(x, y)
                 if tile:
                     if not in_rect:
@@ -136,34 +151,70 @@ class Level:
                 elif in_rect:
                     finish_rect()
             if in_rect:
-                x += 1
+                x += self.tiles.tilewidth
                 finish_rect()
 
         # pass 2: merge rectangles down where possible
         # sort the rects so we find the top rect first
+        # rects are now in chipmunk coordinate space
         final_rects = []
-        sort_by_y = lambda rect: (rect[1], rect[0])
+        sort_by_y = lambda box: (box[0][1], box[0][0])
         sorted_rects = list(reversed(sorted(rects, key=sort_by_y)))
         while sorted_rects:
             rect = sorted_rects.pop()
             if rect not in rects:
                 continue
-            start_x, start_y, end_x, end_y = rect
+            start, end = rect
+            start_x, start_y = start
+            end_x, end_y = end
             new_start_y = start_y
             new_end_y = end_y
             while True:
-                new_start_y += 16
-                new_end_y += 16
-                nextrect = (start_x, new_start_y, end_x, new_end_y)
+                new_start_y += self.tiles.tileheight
+                new_end_y += self.tiles.tileheight
+                nextrect = ((start_x, new_start_y), (end_x, new_end_y))
                 if nextrect not in rects:
                     break
                 rects.remove(nextrect)
                 end_y = new_end_y
-            final_rects.append((start_x, start_y, end_x, end_y))
+            final_rects.append((Vec2d(start_x, start_y), Vec2d(end_x, end_y)))
 
         # final_rects.sort(key=sort_by_y)
-        # print("COLLISION RECTS")
-        # pprint.pprint(final_rects)
+        print("COLLISION RECTS")
+        pprint.pprint(final_rects)
+
+        self.space = pymunk.Space()
+        self.draw_options = pymunk.pyglet_util.DrawOptions()
+        self.space.gravity = (0, 0)
+
+        # chipmunk coordinate space is *tile space*
+        # not *pixels*
+        # (if map is 100x100 tiles, then chipmunk is also 100x100, not 1600x1600)
+        def add_body_from_bb(rect):
+            start, end = rect
+            width = end.x - start.x
+            height = end.y - start.y
+            center_x = start.x + (width >> 1)
+            center_y = start.y + (height >> 1)
+
+            body = pymunk.Body(body_type=pymunk.Body.STATIC)
+            body.position = Vec2d(center_x, center_y)
+            shape = pymunk.Poly.create_box(body, (width, height))
+            self.space.add(body, shape)
+
+        for rect in final_rects:
+            add_body_from_bb(rect)
+
+        upper_left = Vec2d(-50, -50)
+        lower_right = Vec2d((self.tiles.width * self.tiles.tilewidth) + 50, (self.tiles.height * self.tiles.tileheight) + 50)
+
+        # bounding boxes around level geometry to trap the player inside the level
+        add_body_from_bb((upper_left, Vec2d(lower_right.x, 0)))
+        add_body_from_bb((upper_left, Vec2d(0, lower_right.y)))
+        add_body_from_bb((Vec2d(self.tiles.width * self.tiles.tilewidth, upper_left.y), lower_right))
+        add_body_from_bb((Vec2d(upper_left.x, self.tiles.height * self.tiles.tileheight), lower_right))
+
+
 
     def on_draw(self):
         self.map.draw()
@@ -213,7 +264,7 @@ class Player:
 
         self.desired_speed = vector_zero
         self.normalized_desired_speed = vector_zero
-        self.speed_multiplier = 10
+        self.speed_multiplier = 100
         self.speed = vector_zero
         self.acceleration_frames = 20 # 20/60 of a second to get to full speed
         self.movement_keys = set()
@@ -233,6 +284,20 @@ class Player:
 
         self.image = pyglet.image.load("player.png")
         self.sprite = pyglet.sprite.Sprite(self.image, batch=level.map.batch, group=level.foreground_sprite_group)
+
+        self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
+        self.body.position = Vec2d(self.position.x, self.position.y)
+        self.body.velocity_func = self.on_update_velocity
+        assert level.tiles.tileheight == level.tiles.tilewidth
+        self.shape = pymunk.Circle(self.body, level.tiles.tilewidth / 2)
+        level.space.add(self.body, self.shape)
+
+        # self.control_body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
+        # self.control_body.position = self.body.position
+        # self.control_joint = pymunk.constraint.PivotJoint(self.control_body, self.body, (0, 0))
+        # self.control_joint.max_bias = 200
+        # self.control_joint.max_force = 3000
+        # level.space.add(self.control_joint)
 
     def calculate_normalized_desired_speed(self):
         if not (self.desired_speed.x and self.desired_speed.y):
@@ -280,9 +345,17 @@ class Player:
         return pyglet.event.EVENT_HANDLED
 
     def on_player_move(self):
-        self.sprite.x = self.position.x
-        self.sprite.y = window.height - self.position.y - 1
-        level.map.set_focus(self.position.x, self.position.y)
+        p = Vec2d(self.body.position.x,
+            self.body.position.y)
+        self.sprite.position = (p.x, window.height - p.y - 1)
+        # self.sprite.x = self.position.x
+        # self.sprite.y = window.height - self.position.y - 1
+        level.map.set_focus(p.x, p.y)
+
+    def on_update_velocity(self, body, gravity, damping, dt):
+        velocity = Vec2d(self.speed.x, self.speed.y) * 3
+        body.velocity = velocity
+        self.body.velocity = velocity
 
     def on_update(self, dt):
         # TODO
@@ -294,35 +367,39 @@ class Player:
             self.speed += delta
             self.speed = vector_clamp(self.speed, self.normalized_desired_speed)
             # print("SPEED IS NOW", self.speed)
-        if self.speed:
-            new_position = self.position + self.speed
-            x, y = new_position
-            if x < level.upper_left.x:
-                x = level.upper_left.x
-            if y < level.upper_left.y:
-                y = level.upper_left.y
-            if x > level.lower_right.x:
-                x = level.lower_right.x
-            if y > level.lower_right.y:
-                y = level.lower_right.y
-            # now check if we're colliding
-            for key in self.movement_keys:
-                vector = self.movement_vectors[key] * 8
-                tile_position = new_position + vector
-                if level.collision_tile_at(tile_position):
-                    # throw away movement in bad direction
-                    if vector.x:
-                        x = self.position.x
-                    else:
-                        y = self.position.y
-            # print("new position", new_position)
-            new_position = Vector((x, y))
-            if self.position != new_position:
-                self.position = new_position
-                # print("position now", self.position)
-                self.on_player_move()
+        velocity = Vec2d(self.speed.x, self.speed.y)
+        # self.control_body.position = self.body.position + velocity
+        if 0:
+            if self.speed:
+                new_position = self.position + self.speed
+                x, y = new_position
+                if x < level.upper_left.x:
+                    x = level.upper_left.x
+                if y < level.upper_left.y:
+                    y = level.upper_left.y
+                if x > level.lower_right.x:
+                    x = level.lower_right.x
+                if y > level.lower_right.y:
+                    y = level.lower_right.y
+                # now check if we're colliding
+                for key in self.movement_keys:
+                    vector = self.movement_vectors[key] * 8
+                    tile_position = new_position + vector
+                    if level.collision_tile_at(tile_position):
+                        # throw away movement in bad direction
+                        if vector.x:
+                            x = self.position.x
+                        else:
+                            y = self.position.y
+                # print("new position", new_position)
+                new_position = Vector((x, y))
+                if self.position != new_position:
+                    self.position = new_position
+                    # print("position now", self.position)
+
 
     def on_draw(self):
+        self.on_player_move()
         # we're actually drawn as part of the batch for the tiles
         pass
 
@@ -420,6 +497,7 @@ def on_draw():
 
 def on_update(dt):
     player.on_update(dt)
+    level.space.step(dt)
 
 pyglet.clock.schedule_interval(on_update, 1/60.0)
 
@@ -543,6 +621,7 @@ def fire_on_draw():
     global yrot
     with level.map:
         default_system.draw()
+        # level.space.debug_draw(level.draw_options)
     '''
     glBindTexture(GL_TEXTURE_2D, 1)
     glEnable(GL_TEXTURE_2D)
