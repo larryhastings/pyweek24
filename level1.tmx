@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.0" orientation="orthogonal" renderorder="right-up" width="50" height="50" tilewidth="32" tileheight="32" nextobjectid="1">
+ <tileset firstgid="1" name="Mars" tilewidth="32" tileheight="32" tilecount="64">
+  <image source="gfx/mars_tiles.png" width="256" height="256"/>
+  <terraintypes>
+   <terrain name="Wall" tile="-1"/>
+  </terraintypes>
+  <tile id="0">
+   <properties>
+    <property name="wall" value="0"/>
+   </properties>
+  </tile>
+  <tile id="1">
+   <properties>
+    <property name="wall" value="0"/>
+   </properties>
+  </tile>
+  <tile id="2">
+   <properties>
+    <property name="wall" value="0"/>
+   </properties>
+  </tile>
+  <tile id="3">
+   <properties>
+    <property name="wall" value="0"/>
+   </properties>
+  </tile>
+  <tile id="4" terrain="0,0,0,0">
+   <properties>
+    <property name="wall" value="1"/>
+   </properties>
+  </tile>
+  <tile id="5" terrain="0,0,0,0">
+   <properties>
+    <property name="wall" value="1"/>
+   </properties>
+  </tile>
+  <tile id="6" terrain=",,,0">
+   <properties>
+    <property name="wall" value="1"/>
+   </properties>
+  </tile>
+  <tile id="7" terrain=",,0,">
+   <properties>
+    <property name="wall" value="1"/>
+   </properties>
+  </tile>
+  <tile id="8">
+   <properties>
+    <property name="wall" value="0"/>
+   </properties>
+  </tile>
+  <tile id="9" probability="0.1">
+   <properties>
+    <property name="wall" value="0"/>
+   </properties>
+  </tile>
+  <tile id="10" probability="0.1">
+   <properties>
+    <property name="wall" value="0"/>
+   </properties>
+  </tile>
+  <tile id="11" probability="0.05">
+   <properties>
+    <property name="wall" value="0"/>
+   </properties>
+  </tile>
+  <tile id="12">
+   <properties>
+    <property name="wall" value="1"/>
+   </properties>
+  </tile>
+  <tile id="13">
+   <properties>
+    <property name="wall" value="1"/>
+   </properties>
+  </tile>
+  <tile id="14" terrain=",0,,">
+   <properties>
+    <property name="wall" value="1"/>
+   </properties>
+  </tile>
+  <tile id="15" terrain="0,,,">
+   <properties>
+    <property name="wall" value="1"/>
+   </properties>
+  </tile>
+ </tileset>
+ <layer name="Map" width="50" height="50">
+  <data encoding="base64" compression="zlib">
+   eJy1WWtPwzAMLLABWyqx//9rWSUqmZN9PjvZB2td2zh+nF/pbdu2W0B3uL6be4Oss7Q7vNg+7F5GuCbjcT7fJ/e16+7AA+00zK/yHiPksTvPIz6e7hEfpivzecZHxcIMMTuqe0XvfT3pM6BvkSfzj/cMY1KNQ0bXJ70FdBVspdgxw0p3D3s/0uNi9FiJQ/ZO5hebFzFOUA+LK6bHAN547f23cqI+4+/9bkwesr4bQlxFOWh1DsgIfYUxlunRwcSZu5W42B0ZFYxV/WH3i2RT5I2wqPo1y3s/2/88a/XAZ+fayMersKbw8Xqh8/qw/8XQhyEld1kds7qr9hYdOyi15FW0Mm9U9VDtpeJErR+KHhgjnh4Dfqu0N9ZXet5D1oegB7NLJlsnJ1T93o0P7PUrsmGviTLvYLco/9pepaqHNxOotlvR43qyHGTrBdIj2J/NXNF7yGeQtRU/e/W1M3d1SfFNRR6vRkbrEd+RTGfsZLJGz7MZ2v63cer1zqyfZvKpMth7ap3HvFDt/TJZ1b6kg6MoZ0dzDdPNm5sq+V3VT6m1UU5W8rSHyYqds9kk2r86p2SzKcOcWssVDFl+WQ5ltbEqT+Y/L79h/ujOhepZy2ztreZcm7uq/Y4it8dXiREPD6v7EoXnzLlU1Adi3Ho1i/mr2vNjH7TahureVr/sHKzrP6wjs/quilvVB5Fdzv61W9NZfFfzj9pHd3Kl8v2ge/ZTxZd3btTBDKuNiu0tprv5VNGDnR1iTWT5uRNz3TM0pReYsUlFfmXWzjCszroZDYFP9TtA5aydzYDRHBnhL/NxhMUZv87kKcU2Fbtn30sUmViOYHZHX6n7ZTMo+2amYA/nhsq8PvONrYLBTBfbH7LZJMOyurcXR5nd1L5ltT09jFi7rbLHK/zOZqEq1rOaqtY/pd7M2mvFbOGdodtzPmV2UPovfM/zTWcG7Z4lV+tVVB+zGl31UaUOd/j+ArXlWEA=
+  </data>
+ </layer>
+ <layer name="Game elements" width="50" height="50">
+  <data encoding="base64" compression="zlib">
+   eJztwQENAAAAwqD3T20ON6AAAAAAAAAAAADg3wAnEAAB
+  </data>
+ </layer>
+</map>

@@ -15,7 +15,7 @@ class Viewport:
     def __enter__(self):
         gl.glPushMatrix()
         x, y = self.pos
-        gl.glTranslatef(self.w // 2 - int(x), self.h // 2 - int(y), 0)
+        gl.glTranslatef(self.w // 2 - int(x), self.h - int(y), 0)
 
     def __exit__(self, *_):
         gl.glPopMatrix()
@@ -27,9 +27,12 @@ class MapRenderer:
         self.load(tmxfile)
 
     def load(self, tmxfile):
+        """Populate a batch with sprites from the tmx file."""
         self.batch = pyglet.graphics.Batch()
         self.width = tmxfile.width
         self.height = tmxfile.height
+
+        self.light_objects = []
 
         assert len(tmxfile.tilesets) == 1, "Multiple tilesets not supported."
 
@@ -47,15 +50,25 @@ class MapRenderer:
 
         # Build mapping of tile texture by gid
         self.tiles = {}
+        self.collision_gids = set()
+        tileset.columns = 8  # FIXME: load from TMX
         rows = (tileset.tilecount + tileset.columns - 1) // tileset.columns
+        tiles = iter(tileset.tiles)
         for y in range(rows):
             for x in range(tileset.columns):
                 gid = x + y * tileset.columns + tileset.firstgid
                 tex = self.tiles_tex[(rows - 1 - y), x]
                 self.tiles[gid] = tex
 
+                # Load which gids are collidable here
+                tile = next(tiles, None)
+                if tile:
+                    props = {p.name: p.value for p in tile.properties}
+                    if props.get('wall') == '1':
+                        self.collision_gids.add(gid)
+
         self.sprites = {}
-        for layer in tmxfile.layers:
+        for layernum, layer in enumerate(tmxfile.layers):
             for i, tile in enumerate(layer.tiles):
                 if tile.gid == 0:
                     continue

@@ -4,9 +4,6 @@ import os
 import pprint
 import sys
 
-# checked in, got from https://github.com/reidrac/pyglet-tiled-json-map.git
-import json_map
-
 # built from source, removed "inline" from Group_kill_p in */group.h
 import lepton
 
@@ -50,7 +47,7 @@ EVENT_HANDLED = pyglet.event.EVENT_HANDLED
 
 window = pyglet.window.Window()
 
-pyglet.resource.path = [".", "gfx/kenney_roguelike/Spritesheet"]
+pyglet.resource.path = [".", "gfx", "gfx/kenney_roguelike/Spritesheet"]
 pyglet.resource.reindex()
 
 
@@ -97,40 +94,29 @@ class Level:
     def __init__(self, basename):
         self.load(basename)
 
-        self.map.set_viewport(0, 0, window.width, window.height)
-        self.background_tiles, self.collision_tiles, self.player_position_tiles = (layer.tiles for layer in self.tiles.layers)
+        self.collision_tiles, self.player_position_tiles = (layer.tiles for layer in self.tiles.layers)
         self.upper_left = Vec2d(vector_zero)
         self.lower_right = Vec2d(
             self.tiles.width * self.tiles.tilewidth,
             self.tiles.height * self.tiles.tileheight,
             )
 
-        self.foreground_sprite_group = pyglet.graphics.OrderedGroup(self.map.last_group + 1)
+        self.foreground_sprite_group = pyglet.graphics.OrderedGroup(1)
         self.construct_collision_geometry()
-
 
     def load(self, basename):
         # we should always save the tmx file
         # then export the json file
         # this function will detect that that's true
-        json_path = basename + ".json"
         tmx_path = basename + ".tmx"
         try:
-            json_stat = os.stat(json_path)
             tmx_stat = os.stat(tmx_path)
         except FileNotFoundError:
-            sys.exit(f"Couldn't find both json and tmx for basename {basename}!")
-
-        if tmx_stat.st_mtime >= json_stat.st_mtime:
-            sys.exit(f"{json_path} map file out of date! Export JSON from {tmx_path}.")
-
-        with pyglet.resource.file(json_path) as f:
-            self.map = json_map.Map.load_json(f)
+            sys.exit(f"Couldn't find tmx for basename {basename}!")
 
         self.tiles = tmx.TileMap.load(tmx_path)
         self.maprenderer = MapRenderer(self.tiles)
-
-        return self.map
+        self.collision_gids = self.maprenderer.collision_gids
 
     def construct_collision_geometry(self):
         """
@@ -352,7 +338,6 @@ class Level:
 
     def on_draw(self):
         self.maprenderer.render()
-        #self.map.draw()
 
     def position_to_tile_index(self, x, y=None):
         if y is None:
@@ -374,10 +359,11 @@ class Level:
         return Vec2d(x, y)
 
     def collision_tile_at(self, x, y=None):
-        return self.collision_tiles[self.position_to_tile_index(x, y)].gid
+        gid = self.collision_tiles[self.position_to_tile_index(x, y)].gid
+        return gid in self.collision_gids
 
 
-level = Level("prototype")
+level = Level("level1")
 
 
 sin_45degrees = math.sin(math.pi / 4)
@@ -419,7 +405,7 @@ class Player:
             }
 
         self.image = pyglet.image.load("player.png")
-        self.sprite = pyglet.sprite.Sprite(self.image, batch=level.map.batch, group=level.foreground_sprite_group)
+        self.sprite = pyglet.sprite.Sprite(self.image, group=level.foreground_sprite_group)
 
         # self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
@@ -483,7 +469,6 @@ class Player:
             window.height - p.y - (level.tiles.tileheight >> 1)
             )
         viewport.pos = self.sprite.position
-        level.map.set_focus(p)
 
     def on_update_velocity(self, body, gravity, damping, dt):
         velocity = Vec2d(self.speed.x, self.speed.y) * 3
@@ -692,6 +677,9 @@ def on_resize(width, height):
     gluPerspective(70, 1.0*width/height, 0.1, 1000.0)
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
+
+    viewport.w = width
+    viewport.h = height
 # window.on_resize = on_resize
 
 yrot = 0.0
