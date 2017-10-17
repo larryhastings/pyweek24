@@ -393,12 +393,18 @@ class Player:
         # TODO why is this what we wanted?!
         self.position = self.position + Vec2d(0, level.tiles.tileheight)
 
+        # acceleration we add to speed every frame
+        self.acceleration = Vec2d(vector_zero)
+        # this is literally the self.acceleration as a unit vector
         self.desired_speed = Vec2d(vector_zero)
-        self.normalized_desired_speed = Vec2d(vector_zero)
+        # actual current speed
+        self.speed = Vec2d(vector_zero)
         self.speed_multiplier = 100
         self.speed = Vec2d(vector_zero)
-        self.acceleration_frames = 20 # 20/60 of a second to get to full speed
-        self.movement_keys = set()
+        self.acceleration_frames = 15 # 20/60 of a second to get to full speed
+        self.pause_pressed_keys = []
+        self.pause_released_keys = []
+        self.movement_keys = []
         # coordinate system has (0, 0) at upper left
         self.movement_vectors = {
             key.UP:    vector_unit_y * -1,
@@ -426,49 +432,80 @@ class Player:
         self.shape = pymunk.Circle(self.body, level.tiles.tilewidth >> 1)
         level.space.add(self.body, self.shape)
 
-    def calculate_normalized_desired_speed(self):
-        if not (self.desired_speed.x and self.desired_speed.y):
-            self.normalized_desired_speed = Vec2d(self.desired_speed)
-        else:
-            self.normalized_desired_speed = self.desired_speed * sin_45degrees
-        self.normalized_desired_speed *= self.speed_multiplier
-        # print("normalized desired speed is now", self.normalized_desired_speed)
+    def calculate_speed(self):
+        if self.speed != self.desired_speed:
+            self.speed = vector_clamp(self.speed + self.acceleration, self.desired_speed)
+
+    def calculate_acceleration(self):
+        new_acceleration = Vec2d(0, 0)
+        handled = set()
+        for key in self.movement_keys:
+            if key in handled:
+                continue
+            vector = self.movement_vectors.get(key)
+            new_acceleration += vector
+            handled.add(key)
+            handled.add(self.movement_opposites[key])
+
+        desired_speed = new_acceleration.normalized() * self.speed_multiplier
+        if desired_speed.x and desired_speed.y:
+            desired_speed *= sin_45degrees
+
+        self.desired_speed = desired_speed
+        self.acceleration = desired_speed / self.acceleration_frames
+
+    def on_pause_change(self):
+        if game.paused:
+            assert not self.pause_pressed_keys
+            assert not self.pause_released_keys
+            return
+
+        if not (self.pause_pressed_keys or self.pause_released_keys):
+            return
+
+        movement_change = False
+        for key in self.pause_released_keys:
+            if key in self.pause_pressed_keys:
+                self.pause_pressed_keys.remove(key)
+            elif key in self.movement_keys:
+                movement_change = True
+                self.movement_keys.remove(key)
+        self.pause_released_keys.clear()
+
+        if not (movement_change or self.pause_pressed_keys):
+            return
+
+        new_movement_keys = []
+        new_movement_keys.extend(self.pause_pressed_keys)
+        new_movement_keys.extend(self.movement_keys)
+        self.movement_keys = new_movement_keys
+        self.pause_pressed_keys.clear()
+        self.calculate_acceleration()
 
     def on_key_press(self, symbol, modifiers):
-        if game.paused:
-            return
         vector = self.movement_vectors.get(symbol)
         if not vector:
             return
-        self.movement_keys.add(symbol)
-        self.desired_speed = self.desired_speed + vector
-        # if we press RIGHT while we're already pressing LEFT,
-        # cancel out the LEFT (and ignore the keyup on it later)
-        #
-        # TODO:
-        # press-and-hold right
-        # then, press-and-hold left
-        # then, release left
-        # you should resume going right!
-        opposite = self.movement_opposites[symbol]
-        if opposite in self.movement_keys:
-            opposite_vector = self.movement_vectors[opposite]
-            self.desired_speed = self.desired_speed - opposite_vector
-            self.movement_keys.remove(opposite)
-        self.calculate_normalized_desired_speed()
+        if game.paused:
+            self.pause_pressed_keys.insert(0, symbol)
+            return
+        self.movement_keys.insert(0, symbol)
+        self.calculate_acceleration()
         return pyglet.event.EVENT_HANDLED
 
     def on_key_release(self, symbol, modifiers):
-        if game.paused:
-            return
         vector = self.movement_vectors.get(symbol)
         if not vector:
             return
+        if game.paused:
+            if symbol in self.pause_pressed_keys:
+                self.pause_pressed_keys.remove(symbol)
+            else:
+                self.pause_released_keys.insert(0, symbol)
+            return
         if symbol in self.movement_keys:
             self.movement_keys.remove(symbol)
-            vector = self.movement_vectors.get(symbol)
-            self.desired_speed -= vector
-            self.calculate_normalized_desired_speed()
+            self.calculate_acceleration()
         return pyglet.event.EVENT_HANDLED
 
     def on_player_move(self):
@@ -488,12 +525,7 @@ class Player:
         # TODO
         # actually use dt here
         # instead of assuming it's 1/60 of a second
-        # print("PLAYER UPDATE", self.speed, self.normalized_desired_speed)
-        if self.speed != self.normalized_desired_speed:
-            delta = self.normalized_desired_speed / self.acceleration_frames
-            self.speed += delta
-            self.speed = vector_clamp(self.speed, self.normalized_desired_speed)
-            # print("SPEED IS NOW", self.speed)
+        self.calculate_speed()
 
     def on_draw(self):
         # we're actually drawn as part of the batch for the tiles
@@ -523,6 +555,7 @@ def key_escape(pressed):
     # print("SPACE", pressed)
     if pressed:
         game.paused = not game.paused
+        player.on_pause_change()
 
 @keypress(key.UP)
 def key_up(pressed):
@@ -592,6 +625,9 @@ def on_draw():
 
 
 def on_update(dt):
+    if game.paused:
+        return
+            
     player.on_update(dt)
     level.space.step(dt)
     player.on_player_move()
