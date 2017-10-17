@@ -375,8 +375,6 @@ class Level:
 level = Level("prototype")
 
 
-sin_45degrees = math.sin(math.pi / 4)
-
 
 class Player:
     def __init__(self):
@@ -448,8 +446,6 @@ class Player:
             handled.add(self.movement_opposites[key])
 
         desired_speed = new_acceleration.normalized() * self.speed_multiplier
-        if desired_speed.x and desired_speed.y:
-            desired_speed *= sin_45degrees
 
         self.desired_speed = desired_speed
         self.acceleration = desired_speed / self.acceleration_frames
