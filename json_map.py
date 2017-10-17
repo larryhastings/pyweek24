@@ -389,10 +389,14 @@ class Map(object):
             if layer.data["visible"]:
                 layer.set_viewport(self.x, self.y, self.w, self.h)
 
-    def set_focus(self, x, y):
+    def set_focus(self, x, y=None):
         """Sets the focus in (x, y) world coordinates."""
-        x = int(x)
-        y = int(y)
+        if y == None:
+            y = int(x[1])
+            x = int(x[0])
+        else:
+            x = int(x)
+            y = int(y)
         if self.fx == x and self.fy == y:
             return
 
