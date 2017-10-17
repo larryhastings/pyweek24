@@ -42,6 +42,9 @@ import tmx
 # from wasabi.geom.vector import unit_x as vector_unit_x
 # from wasabi.geom.vector import unit_y as vector_unit_y
 
+from maprenderer import MapRenderer, Viewport
+
+
 key = pyglet.window.key
 EVENT_HANDLED = pyglet.event.EVENT_HANDLED
 
@@ -50,6 +53,8 @@ window = pyglet.window.Window()
 pyglet.resource.path = [".", "gfx/kenney_roguelike/Spritesheet"]
 pyglet.resource.reindex()
 
+
+viewport = Viewport(*window.get_size())
 
 
 def _clamp(c, other):
@@ -102,7 +107,7 @@ class Level:
 
         self.foreground_sprite_group = pyglet.graphics.OrderedGroup(self.map.last_group + 1)
         self.construct_collision_geometry()
-       
+
 
     def load(self, basename):
         # we should always save the tmx file
@@ -123,6 +128,7 @@ class Level:
             self.map = json_map.Map.load_json(f)
 
         self.tiles = tmx.TileMap.load(tmx_path)
+        self.maprenderer = MapRenderer(self.tiles)
 
         return self.map
 
@@ -241,7 +247,7 @@ class Level:
                 #
                 # 3. rrrrrrrr       overlap, r2 is inside r
                 #      r2r2
-                #     
+                #
                 # 4.   rrrr         overlap, r is inside r2
                 #    r2r2r2r2
                 #
@@ -260,7 +266,7 @@ class Level:
 
         # pass 4:
         # construct "blobs" of touching rects.
-        # 
+        #
         # pull out a rect and put it in a set.
         # then pull out all rects that touch it and put them in the set too,
         # and all rects that touch *that*, ad infinitum.
@@ -344,10 +350,9 @@ class Level:
         add_box_from_bb((Vec2d(self.lower_right.x, boundary_upper_left.y), boundary_lower_right))
         add_box_from_bb((Vec2d(boundary_upper_left.x, self.lower_right.y), boundary_lower_right))
 
-
-
     def on_draw(self):
-        self.map.draw()
+        self.maprenderer.render()
+        #self.map.draw()
 
     def position_to_tile_index(self, x, y=None):
         if y is None:
@@ -477,6 +482,7 @@ class Player:
             p.x - (level.tiles.tilewidth >> 1),
             window.height - p.y - (level.tiles.tileheight >> 1)
             )
+        viewport.pos = self.sprite.position
         level.map.set_focus(p)
 
     def on_update_velocity(self, body, gravity, damping, dt):
@@ -497,7 +503,7 @@ class Player:
 
     def on_draw(self):
         # we're actually drawn as part of the batch for the tiles
-        pass
+        self.sprite.draw()
 
 
 player = Player()
@@ -584,10 +590,11 @@ def on_key_release(symbol, modifiers):
 @window.event
 def on_draw():
     window.clear()
-    level.on_draw()
-    player.on_draw()
-    game.on_draw()
-    fire_on_draw()
+    with viewport:
+        level.on_draw()
+        player.on_draw()
+        game.on_draw()
+        default_system.draw()
 
 
 
@@ -712,30 +719,6 @@ def fire(dt=None):
 fire()
 pyglet.clock.schedule_interval(default_system.update, (1.0/30.0))
 pyglet.clock.set_fps_limit(None)
-
-
-def fire_on_draw():
-    global yrot
-    with level.map:
-        default_system.draw()
-        # level.space.debug_draw(level.draw_options)
-    '''
-    glBindTexture(GL_TEXTURE_2D, 1)
-    glEnable(GL_TEXTURE_2D)
-    glEnable(GL_POINT_SPRITE)
-    glPointSize(100);
-    glBegin(GL_POINTS)
-    glVertex2f(0,0)
-    glEnd()
-    glBindTexture(GL_TEXTURE_2D, 2)
-    glEnable(GL_TEXTURE_2D)
-    glEnable(GL_POINT_SPRITE)
-    glPointSize(100);
-    glBegin(GL_POINTS)
-    glVertex2f(50,0)
-    glEnd()
-    glBindTexture(GL_TEXTURE_2D, 0)
-    '''
 
 
 pyglet.app.run()
