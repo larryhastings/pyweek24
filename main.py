@@ -180,16 +180,14 @@ class Level:
             final_rects.append((Vec2d(start_x, start_y), Vec2d(end_x, end_y)))
 
         # final_rects.sort(key=sort_by_y)
-        print("COLLISION RECTS")
-        pprint.pprint(final_rects)
+        # print("COLLISION RECTS")
+        # pprint.pprint(final_rects)
 
         self.space = pymunk.Space()
         self.draw_options = pymunk.pyglet_util.DrawOptions()
         self.space.gravity = (0, 0)
 
-        # chipmunk coordinate space is *tile space*
-        # not *pixels*
-        # (if map is 100x100 tiles, then chipmunk is also 100x100, not 1600x1600)
+        # chipmunk coordinate space is *pixel space*
         def add_body_from_bb(rect):
             start, end = rect
             width = end.x - start.x
@@ -285,11 +283,12 @@ class Player:
         self.image = pyglet.image.load("player.png")
         self.sprite = pyglet.sprite.Sprite(self.image, batch=level.map.batch, group=level.foreground_sprite_group)
 
+        # self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body.position = Vec2d(self.position.x, self.position.y)
         self.body.velocity_func = self.on_update_velocity
         assert level.tiles.tileheight == level.tiles.tilewidth
-        self.shape = pymunk.Circle(self.body, level.tiles.tilewidth / 2)
+        self.shape = pymunk.Circle(self.body, level.tiles.tilewidth >> 1)
         level.space.add(self.body, self.shape)
 
         # self.control_body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
@@ -347,7 +346,7 @@ class Player:
     def on_player_move(self):
         p = Vec2d(self.body.position.x,
             self.body.position.y)
-        self.sprite.position = (p.x, window.height - p.y - 1)
+        self.sprite.position = (p.x - (level.tiles.tilewidth >> 1), window.height - p.y - (level.tiles.tileheight >> 1))
         # self.sprite.x = self.position.x
         # self.sprite.y = window.height - self.position.y - 1
         level.map.set_focus(p.x, p.y)
@@ -399,7 +398,6 @@ class Player:
 
 
     def on_draw(self):
-        self.on_player_move()
         # we're actually drawn as part of the batch for the tiles
         pass
 
@@ -498,6 +496,7 @@ def on_draw():
 def on_update(dt):
     player.on_update(dt)
     level.space.step(dt)
+    player.on_player_move()
 
 pyglet.clock.schedule_interval(on_update, 1/60.0)
 
