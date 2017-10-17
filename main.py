@@ -414,6 +414,8 @@ class Player:
             }
 
         self.image = pyglet.image.load("player.png")
+        self.image.anchor_x = self.image.width // 2
+        self.image.anchor_y = self.image.height // 2
         self.sprite = pyglet.sprite.Sprite(self.image)
 
         # self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
@@ -422,7 +424,7 @@ class Player:
         self.body.velocity_func = self.on_update_velocity
 
         # make player a circle with radius 0.4
-        self.shape = pymunk.Circle(self.body, 0.5)
+        self.shape = pymunk.Circle(self.body, 0.4)
         level.space.add(self.body, self.shape)
 
     def calculate_speed(self):

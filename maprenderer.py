@@ -66,6 +66,8 @@ class MapRenderer:
             for x in range(tileset.columns):
                 gid = x + y * tileset.columns + tileset.firstgid
                 tex = self.tiles_tex[(rows - 1 - y), x]
+                tex.anchor_x = tex.width // 2
+                tex.anchor_y = tex.height // 2
                 self.tiles[gid] = tex
 
                 # Load which gids are collidable here
