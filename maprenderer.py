@@ -32,8 +32,38 @@ class Viewport:
         gl.glPopMatrix()
 
 
+lighting_shader = Shader(
+    vert="""
+varying vec2 pos; // position of the fragment in screen space
+
+void main(void)
+{
+    vec4 a = gl_Vertex;
+    gl_Position = gl_ModelViewProjectionMatrix * a;
+    pos = gl_Vertex.xy;
+}
+""",
+    frag="""
+varying vec2 pos;
+
+uniform vec2 light_pos;
+uniform vec3 light_color;
+uniform float attenuation;
+uniform float exponent;
+
+void main (void) {
+    float dist = max(1.0 - distance(pos, light_pos) / attenuation, 0.0);
+    gl_FragColor = vec4(light_color, pow(dist, exponent));
+}
+"""
+)
+
+
 class Light:
-    def __init__(self, pos=(0, 0), color=(1.0, 1.0, 1.0, 0.2)):
+    attenuation = 120
+    exponent = 3
+
+    def __init__(self, pos=(0, 0), color=(80.0, 100.0, 150.0)):
         self.pos = pos
         self.color = color
 
@@ -107,22 +137,27 @@ class MapRenderer:
 
     def render(self):
         self.batch.draw()
+
+        gl.glEnable(gl.GL_BLEND)
+        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
+        lighting_shader.bind()
         for light in self.lights:
             self.render_light(light)
+        lighting_shader.unbind()
 
     def render_light(self, light):
         occluders = []
         x, y = light.pos
 
-        l = x - 5
-        r = x + 5
-        b = y - 5
-        t = y + 5
+        l = x - 3
+        r = x + 3
+        b = y - 3
+        t = y + 3
 
         occluders.append(
             lightvolume.rect(
-                (l - 2) * self.tilew, (r + 2) * self.tilew,
-                (b - 2) * self.tileh, (t + 2) * self.tileh,
+                (l - 1) * self.tilew, (r + 1) * self.tilew,
+                (b - 1) * self.tileh, (t + 1) * self.tileh,
             )
         )
 
@@ -138,6 +173,8 @@ class MapRenderer:
 
         wx = x * self.tilew
         wy = y * self.tileh
-        gl.glColor4f(*light.color)
+        lighting_shader.uniformf('light_pos', wx, wy)
+        lighting_shader.uniformf('light_color', *light.color)
+        lighting_shader.uniformf('attenuation', light.attenuation)
+        lighting_shader.uniformf('exponent', light.exponent)
         lightvolume.draw_light((wx, wy), occluders)
-        gl.glColor4f(1.0, 1.0, 1.0, 1.0)
