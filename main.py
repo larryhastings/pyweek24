@@ -1,3 +1,4 @@
+from enum import IntEnum
 import io
 import math
 import os
@@ -78,6 +79,15 @@ def vector_clamp(v, other):
     return Vec2d(_clamp(v.x, other.x), _clamp(v.y, other.y))
 
 
+class CollisionType(IntEnum):
+    INVALID = 0
+    WALL = 1
+    PLAYER = 2
+    PLAYER_BULLET = 4
+    MONSTER = 8
+    MONSTER_BULLET = 16
+
+
 
 class Game:
     def __init__(self):
@@ -93,7 +103,6 @@ class Game:
         if self.paused:
             self.pause_label.draw()
 
-game = Game()
 
 
 class Level:
@@ -306,6 +315,13 @@ class Level:
         #     (x, y), (end_x, end_y) = r_as_tiles(blob[0])
         #     print(f"    ({x:3}, {y:3})")
 
+        self.space = pymunk.Space()
+        self.draw_options = pymunk.pyglet_util.DrawOptions()
+        self.space.gravity = (0, 0)
+        self.player_collision_filter = pymunk.ShapeFilter(group=CollisionType.PLAYER)
+        ch = self.space.add_collision_handler(int(CollisionType.PLAYER_BULLET), int(CollisionType.WALL))
+        ch.pre_solve = on_bullet_hit_wall
+
         for blob in blobs:
             (r0x, r0y), (r0end_x, r0end_y) = blob[0]
             body = pymunk.Body(body_type=pymunk.Body.STATIC)
@@ -320,6 +336,7 @@ class Level:
                     (    x - r0x, end_y - r0y),
                     ]
                 shape = pymunk.Poly(body, vertices)
+                shape.collision_type = CollisionType.WALL
                 self.space.add(shape)
 
         # finally, draw a square-donut-shaped collision region
@@ -337,10 +354,10 @@ class Level:
             body = pymunk.Body(body_type=pymunk.Body.STATIC)
             body.position = Vec2d(center_x, center_y)
             shape = pymunk.Poly.create_box(body, (width, height))
+            shape.collision_type = CollisionType.WALL
             self.space.add(body, shape)
 
         boundary_delta = Vec2d(50, 50)
-        print(f"self.upper_left {self.upper_left} boundary_delta {boundary_delta}")
         boundary_upper_left = self.upper_left - boundary_delta
         boundary_lower_right = self.lower_right + boundary_delta
 
@@ -376,8 +393,95 @@ class Level:
         return gid in self.collision_gids
 
 
-level = Level("level1")
+bullet_freelist = []
+shape_to_bullet = {}
 
+bullet_flare = pyglet.image.load("flare3.png")
+
+class Bullet:
+    def __init__(self):
+        self.initialize_first_time()
+        self.initialize()
+
+    def initialize(self):
+        self.position = Vec2d(player.position)
+        self.body.position = self.position
+        self.sprite = pyglet.sprite.Sprite(self.image, batch=level.map.batch, group=level.foreground_sprite_group)
+        self.on_update(0)
+        level.space.add(self.body, self.shape)
+
+    def initialize_first_time(self):
+        self.image = bullet_flare
+
+        # self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
+        self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
+        if 1:
+            self.speed = Vec2d(1, 0) * 600
+            self.body.velocity_func = self.on_update_velocity
+        else:
+            self.speed = Vec2d(0, 0)
+        # print("BULLET BODY", hex(id(self.body)), self.body)
+
+        # makebullet a circle with diameter 1/2 the same as tile width (and tile height)
+        assert level.tiles.tileheight == level.tiles.tilewidth
+        self.shape = pymunk.Circle(self.body, level.tiles.tilewidth >> 2)
+        self.shape.collision_type = CollisionType.PLAYER_BULLET
+        self.shape.filter = level.player_collision_filter
+        shape_to_bullet[self.shape] = self
+
+    def on_update(self, dt):
+        self.position = Vec2d(self.body.position)
+        if 0:
+            self.sprite.position = (
+                transform_pymunk_to_screen(self.position) -
+                Vec2d(level.tiles.tilewidth >> 2, level.tiles.tileheight >> 2)
+                )
+        else:
+            # TODO
+            # I have no idea why this produces the correct-looking result
+            self.sprite.position = transform_pymunk_to_screen(self.position)
+            self.sprite.position -= Vec2d(64, 64)
+        # print("BULLET SPRITE POSITION", self.sprite.position)
+
+    def on_update_velocity(self, body, gravity, damping, dt):
+        # print("BULLET BODY", hex(id(self.body)), self.body)
+        # print("PASSED IN BODY", hex(id(body)), body)
+        self.body.velocity = self.speed
+        pass
+
+    def close(self):
+        bullets.discard(self)
+        level.space.remove(self.body, self.shape)
+        self.sprite.delete()
+        self.sprite = None
+        bullet_freelist.append(self)
+
+def new_bullet():
+    # return Bullet()
+    if bullet_freelist:
+        b = bullet_freelist.pop()
+        b.initialize()
+    else:
+        b = Bullet()
+    bullets.add(b)
+    return b
+
+def transform_pymunk_to_screen(position):
+    return Vec2d(
+        position.x,
+        window.height - position.y
+        )
+
+
+bullets = set()
+
+def on_bullet_hit_wall(arbiter, space, data):
+    bullet_shape = arbiter.shapes[0]
+    bullet = shape_to_bullet.get(bullet_shape)
+    # print("bullet hit wall", bullet, bullet.body.position)
+    if bullet and bullet in bullets:
+        bullet.close()
+    return False
 
 
 class Player:
@@ -401,7 +505,7 @@ class Player:
         self.desired_speed = Vec2d(vector_zero)
         # actual current speed
         self.speed = Vec2d(vector_zero)
-        self.speed_multiplier = 100
+        self.speed_multiplier = 300
         self.speed = Vec2d(vector_zero)
         self.acceleration_frames = 15 # 20/60 of a second to get to full speed
         self.pause_pressed_keys = []
@@ -420,6 +524,8 @@ class Player:
             key.LEFT: key.RIGHT,
             key.RIGHT: key.LEFT
             }
+        self.shoot_cooldown = 60
+        self.shoot_waiting = 1
 
         self.image = pyglet.image.load("player.png")
         self.image.anchor_x = self.image.width // 2
@@ -430,9 +536,15 @@ class Player:
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body.position = Vec2d(self.position.x, self.position.y)
         self.body.velocity_func = self.on_update_velocity
+        # print("PLAYER BODY", hex(id(self.body)), self.body)
 
+        # make player a circle with diameter the same as tile width (and tile height)
+        # assert level.tiles.tileheight == level.tiles.tilewidth
+        # self.shape = pymunk.Circle(self.body, level.tiles.tilewidth >> 1)
         # make player a circle with radius 0.3
         self.shape = pymunk.Circle(self.body, 0.3)
+        self.shape.collision_type = CollisionType.PLAYER
+        self.shape.filter = level.player_collision_filter
         level.space.add(self.body, self.shape)
 
     def calculate_speed(self):
@@ -510,12 +622,13 @@ class Player:
         return pyglet.event.EVENT_HANDLED
 
     def on_player_move(self):
-        self.sprite.set_position(*level.map_to_world(*self.body.position))
+        self.position = level.map_to_world(*self.body.position)
+        self.sprite.set_position(*self.position)
         viewport.pos = self.sprite.position
         player_light.pos = self.body.position
 
     def on_update_velocity(self, body, gravity, damping, dt):
-        velocity = Vec2d(self.speed.x, self.speed.y) * 0.1
+        velocity = Vec2d(self.speed) * 0.1
         body.velocity = velocity
         self.body.velocity = velocity
 
@@ -524,14 +637,23 @@ class Player:
         # actually use dt here
         # instead of assuming it's 1/60 of a second
         self.calculate_speed()
+        self.shoot_waiting -= 1
+        # if self.shoot_waiting <= 0:
+        #     self.shoot_waiting = self.shoot_cooldown
+        #     b = new_bullet()
 
     def on_draw(self):
         self.sprite.draw()
 
 
+
+game = Game()
+# level = Level("prototype")
+level = Level("level1")
+
+
 player = Player()
 player.on_player_move()
-
 
 
 keypress_handlers = {}
@@ -628,7 +750,13 @@ def on_update(dt):
 
     player.on_update(dt)
     level.space.step(dt)
+    # print()
+    # print("PLAYER", player.body.position)
     player.on_player_move()
+    for bullet in bullets:
+        # print("BULLET", id(bullet), bullet.body.position)
+        bullet.on_update(dt)
+    # print()
 
 pyglet.clock.schedule_interval(on_update, 1/60.0)
 
