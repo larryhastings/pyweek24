@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.0" tiledversion="2017.10.11" orientation="orthogonal" renderorder="right-up" width="50" height="50" tilewidth="32" tileheight="32" infinite="0" nextobjectid="1">
+<map version="1.0" tiledversion="1.0.3" orientation="orthogonal" renderorder="right-up" width="50" height="50" tilewidth="32" tileheight="32" nextobjectid="1">
  <tileset firstgid="1" name="Mars" tilewidth="32" tileheight="32" tilecount="64" columns="8">
   <image source="gfx/mars_tiles.png" width="256" height="256"/>
   <terraintypes>
@@ -65,14 +65,14 @@
     <property name="wall" value="0"/>
    </properties>
   </tile>
-  <tile id="12">
+  <tile id="12" probability="0.05">
    <properties>
-    <property name="wall" value="1"/>
+    <property name="wall" value="0"/>
    </properties>
   </tile>
-  <tile id="13">
+  <tile id="13" probability="0.1">
    <properties>
-    <property name="wall" value="1"/>
+    <property name="wall" value="0"/>
    </properties>
   </tile>
   <tile id="14" terrain=",0,,">
@@ -83,6 +83,21 @@
   <tile id="15" terrain="0,,,">
    <properties>
     <property name="wall" value="1"/>
+   </properties>
+  </tile>
+  <tile id="16" probability="0.2">
+   <properties>
+    <property name="wall" value="0"/>
+   </properties>
+  </tile>
+  <tile id="17" probability="0.2">
+   <properties>
+    <property name="wall" value="0"/>
+   </properties>
+  </tile>
+  <tile id="18" probability="0.2">
+   <properties>
+    <property name="wall" value="0"/>
    </properties>
   </tile>
   <tile id="19" terrain="0,0,0,0">
@@ -98,6 +113,21 @@
   <tile id="21" terrain="0,0,0,0">
    <properties>
     <property name="wall" value="1"/>
+   </properties>
+  </tile>
+  <tile id="24" probability="0.01">
+   <properties>
+    <property name="wall" value="0"/>
+   </properties>
+  </tile>
+  <tile id="25" probability="0.2">
+   <properties>
+    <property name="wall" value="0"/>
+   </properties>
+  </tile>
+  <tile id="26" probability="0.2">
+   <properties>
+    <property name="wall" value="0"/>
    </properties>
   </tile>
   <tile id="27" terrain="0,0,0,0">
@@ -130,10 +160,30 @@
     <property name="wall" value="1"/>
    </properties>
   </tile>
+  <tile id="48">
+   <properties>
+    <property name="wall" value="1"/>
+   </properties>
+  </tile>
+  <tile id="49">
+   <properties>
+    <property name="wall" value="1"/>
+   </properties>
+  </tile>
+  <tile id="56">
+   <properties>
+    <property name="wall" value="1"/>
+   </properties>
+  </tile>
+  <tile id="57">
+   <properties>
+    <property name="wall" value="1"/>
+   </properties>
+  </tile>
  </tileset>
  <layer name="Map" width="50" height="50">
   <data encoding="base64" compression="zlib">
-   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
+   eJyVmcuS4zYMRZmZ7mTckp2RlI3lbCf7ZJf8/4eNXcVTPrqG7M6CpRcJ4nkBQofW2uE6hj6W/sx1uo5Zz7dx1P2ktWsfvD+J1tDp5NpD0L6ND91frmPs92tf8xFrPjR30rxDXztp/iwel87j3PnzPnOnd9D8oV9P2m8VXcu0it5B+y1dB+b/vCP7rPtV3y9tq5+lv5/bVk+s+e06fv3E+CbZU2bvB2+Xrgt4OGgN67DX3K/mE11Wz9hsEs336/h6Hb+8uL53/q1LaCyFfT+0t2WxPpmHbpcXev3W6UHrqH3eO68ef1/HP/EOOawf+JxEl++LvqcfwcvaHnVS8VPxQOyit2rdv9fxX0ED/R3bHQvSt7AJmGPdGzOIv7HdY3B6Isdb/2b9fFb+Sg77pfEscc146Fia4r1jai74+bPd/eqvYr+L1r19Yvzetn5qXaMjbFXhszFvao/yIeONny8aqUvogvFD3/ez9njT/Q/xhj4XvYNP545zu2Mv31Mm9PpMDmg6vp754zM5voh/48feANOc+9DB0rbY8UqOscvCvmCI/eVV/rAc+BN+7djO2HBcWO5Z77Bp+q/lyG+Or6wbRu1he/8IPeHX8HuWvU/tnmvQl+saY41zje106Hs6Rr9qvIuucxW4jl7hKTEOX5ja1rcTU9d2jwdqPtd+a9vazThQ+VSFn9jTeSvrqrHzcRJ96svMhRnz9inPXYo5Q9vmmvP/kGMvDtNO9j8P6zRzCs+uw7zm2B5jJ+s/9r/VKBkjlsM1ETHPu+Tx0u41kGMIP8xcYXtV311POEZPse625o/r+P7CHnPnZ4x9HAvpP8ROznXN5+95RuCeup45+JYxAgx+5lf2FWxh+39oD+MZNsvaYg56iUuOLa6Xts1p57aN9Ve5zXJYdz6HoSv4GOK7R/pJ1udT53Fq23osY+fY50Dntvez3PY97IqO0neSD3KBz4eOac5Cs9Y71o7tUXc8G+tOfa592Lkq1xtn0fuNjzynWn+cNagxLQvvE4PT98AX29e50vJjw8ybe3nUe5n+Xs7ibDRIpkvb4rcxm5zpM9dJ35i7xrrkMenTAzCN9N3MI9mTqfJKlRdcD+P79tnc2+9do+de+I7x29f0lwp7K2xOv82ew1rQM69rPDuGLcfQHvNMhZVTu8cIsmaupg5bY73txhz7vutBsKHSiXMN/po+YZmdG9izWsdcYsd9MOvpEjQTYzI+bcePeDcFDeoV24a6wv6e9qM+Gto9Ph1T5s85zvXyUXTclxtiv0t7jIHEIPsitq1qi8QW8+BYSR8j/1e6JjawcRWv6VfuZ+3hh3EP/8p+X/o5NIg59z1Mi/jPc5NzTvoSMctwnYoefZZftY/3TrrmFx/KXGL5Weta3HVC6jJp2a+nmO/61zrNM4IxihiwTNQig2inbyQmg0NL0HJvA5yzHiwrccSa6qz/LG7IKdRIaS/iyvWgeTY+p58yD8xhrzy/pfyjbJ3xkrGGn4Pl+Cyxm/zt5fPUmXODzxbo3Ljt+qbqH3M/trtv5b+MasCDsQr7OiYzh9s2Q+xjbOYMZ5245vY9a/Zs7Vi3rpA5a3diCn8aY7/KNu5NVfayTY+xv3sy9jfzZZ+iRhnblmfPyXrtqLXGmjyXVbnNvTrjkXMi/aLEBtdMma9W7elvVU2S54b0z4q3Kea55qLHnHVg1sn5r5L4ndrdJ47t0Qbsx9pze+TH/mg+kNU2S5ssQQN8z/oV21X/hxaNyj55Rkv+LOca6ys/WoKma9rsmcFz1j7Zk7ffVmevrKPt93u5ImuE6h+VfSltfYi1pk+t5Vqowh78OWs1z826YmyP+nGez9ix7NkrA7PACvJengnSN/Ls7P+dWfN7DTncZzaf1fAvxzm0q1rYmFX1QIxVjoXsR3kMO3QyprOPY9nd50rMs7yum5JXYnzvn3vVezi1bc8y/dOYQK1i7K7q1qE91rr4rOt0+kzYsTq3Z1w5LvzPyDokBsCK1BVz+YdZ9YrSdokTGXvuc7lnyjz4MKZX50PnU8dU9ksy5yW/1RmsOvP5vF9hmXupVc2W690ntl+mPwzFfsRH9rXNC3W5/dznPPctk9cx9rIumU9vcdC7qh+TNZjr2+ypE8Nrq7E4+fT/GfegFj07XxnzfZZyL8z2R1/GGdvLtTX08p/PIWgnvoDJjkXzmTo2v8bJOfZx3nTPy2dd+zXf0lZr7Ju4XPVzbs8/AQSOhjE=
   </data>
  </layer>
  <layer name="Game elements" width="50" height="50">
