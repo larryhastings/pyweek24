@@ -145,7 +145,7 @@ void main (void) {
 
 
 class Light:
-    attenuation = 300
+    attenuation = 200
     exponent = 2
 
     def __init__(self, pos=(0, 0), color=(1.0, 1.0, 1.0)):
@@ -154,11 +154,17 @@ class Light:
 
 
 class LightRenderer:
-    def __init__(self, viewport, shadow_casters=None):
+    def __init__(self, viewport, shadow_casters=None, ambient=(0.15, 0.15, 0.3)):
         self.viewport = viewport
         self.shadow_casters = shadow_casters or {}
         self.lights = set()
         self.fbo = None
+        self.ambient = ambient
+
+        self.vl = pyglet.graphics.vertex_list(4,
+            ('v2f/stream', self.viewport_coords()),
+            ('t2f/static', (0, 0, 1, 0, 1, 1, 0, 1))
+        )
 
     def add_light(self, light):
         """Add a light to the renderer."""
@@ -176,19 +182,23 @@ class LightRenderer:
             self.fbo.height == self.viewport.h
         )
 
+    def viewport_coords(self):
+        l, r, b, t = self.viewport.bounds()
+        return (l, b, r, b, r, t, l, t)
+
     @contextmanager
     def illuminate(self):
         if not self.is_fbo_valid():
             self.fbo = FrameBuffer(self.viewport.w, self.viewport.h)
 
+        self.vl.vertices = self.viewport_coords()
+
         with self.fbo:
-            gl.glClearColor(1.0, 1.0, 1.0, 1.0)
             gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
             gl.glPushAttrib(gl.GL_ALL_ATTRIB_BITS)
             yield
             gl.glPopAttrib()
         self.render()
-        gl.glClearColor(0.0, 0.0, 0.0, 0.0)
 
     def render(self):
         """Render all lights."""
@@ -199,11 +209,14 @@ class LightRenderer:
         lighting_shader.uniformi('diffuse_tex', 0)
         lighting_shader.uniformf('viewport', *self.viewport.bounds())
         gl.glEnable(gl.GL_BLEND)
-        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
+        gl.glBlendFunc(gl.GL_ONE, gl.GL_ONE)
         for light in self.lights:
             self.render_light(light)
-        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
         lighting_shader.unbind()
+        gl.glColor3f(*self.ambient)
+        self.vl.draw(gl.GL_QUADS)
+        gl.glColor3f(1, 1, 1)
+        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 
     def render_light(self, light):
         volumes = []
