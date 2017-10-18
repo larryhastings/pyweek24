@@ -1,4 +1,5 @@
 from math import floor, ceil
+from contextlib import contextmanager
 
 import pyglet.graphics
 import pyglet.sprite
@@ -7,6 +8,7 @@ from shader import Shader
 import lightvolume
 
 from json_map import get_texture_sequence
+from fbo import FrameBuffer
 
 
 class Viewport:
@@ -32,46 +34,9 @@ class Viewport:
         gl.glPopMatrix()
 
 
-lighting_shader = Shader(
-    vert="""
-varying vec2 pos; // position of the fragment in screen space
-
-void main(void)
-{
-    vec4 a = gl_Vertex;
-    gl_Position = gl_ModelViewProjectionMatrix * a;
-    pos = gl_Vertex.xy;
-}
-""",
-    frag="""
-varying vec2 pos;
-
-uniform vec2 light_pos;
-uniform vec3 light_color;
-uniform float attenuation;
-uniform float exponent;
-
-void main (void) {
-    float dist = max(1.0 - distance(pos, light_pos) / attenuation, 0.0);
-    gl_FragColor = vec4(light_color, pow(dist, exponent));
-}
-"""
-)
-
-
-class Light:
-    attenuation = 120
-    exponent = 3
-
-    def __init__(self, pos=(0, 0), color=(80.0, 100.0, 150.0)):
-        self.pos = pos
-        self.color = color
-
-
 class MapRenderer:
     def __init__(self, tmxfile):
-        self.lights = [Light((10, 10))]
-        self.occluders = {}  # quick spatial hash of shadow casting tiles
+        self.shadow_casters = {}  # quick spatial hash of shadow casting tiles
         self.load(tmxfile)
 
     def load(self, tmxfile):
@@ -132,49 +97,144 @@ class MapRenderer:
                     usage="static"
                 )
                 if tile.gid in self.collision_gids:
-                    self.occluders[x, y] = True
+                    self.shadow_casters[x, y] = True
                 self.sprites[x, y] = sprite
 
     def render(self):
         self.batch.draw()
 
+
+lighting_shader = Shader(
+    vert="""
+varying vec2 pos; // position of the fragment in screen space
+
+void main(void)
+{
+    vec4 a = gl_Vertex;
+    gl_Position = gl_ModelViewProjectionMatrix * a;
+    pos = gl_Vertex.xy;
+}
+""",
+    frag="""
+varying vec2 pos;
+
+uniform vec2 light_pos;
+uniform vec3 light_color;
+uniform float attenuation;
+uniform float exponent;
+uniform sampler2D diffuse_tex;
+uniform vec4 viewport;
+
+
+void main (void) {
+    float l = viewport.x;
+    float r = viewport.y;
+    float b = viewport.z;
+    float t = viewport.w;
+    vec2 uv = vec2((pos.x - l) / (r - l), (pos.y - b) / (t - b));
+    vec4 diffuse = texture2D(diffuse_tex, uv);
+
+    //gl_FragColor = vec4(diffuse, 1.0);
+
+    float dist = max(1.0 - distance(pos, light_pos) / attenuation, 0.0);
+    float lum = pow(dist, exponent);
+    gl_FragColor = lum * (diffuse * vec4(light_color, 1.0));
+}
+"""
+)
+
+
+class Light:
+    attenuation = 300
+    exponent = 2
+
+    def __init__(self, pos=(0, 0), color=(1.0, 1.0, 1.0)):
+        self.pos = pos
+        self.color = color
+
+
+class LightRenderer:
+    def __init__(self, viewport, shadow_casters=None):
+        self.viewport = viewport
+        self.shadow_casters = shadow_casters or {}
+        self.lights = set()
+        self.fbo = None
+
+    def add_light(self, light):
+        """Add a light to the renderer."""
+        self.lights.add(light)
+
+    def remove_light(self, light):
+        """Remove a light."""
+        self.lights.discard(light)
+
+    def is_fbo_valid(self):
+        """Return True if the FBO still matches the size of the viewport."""
+        return (
+            self.fbo and
+            self.fbo.width == self.viewport.w and
+            self.fbo.height == self.viewport.h
+        )
+
+    @contextmanager
+    def illuminate(self):
+        if not self.is_fbo_valid():
+            self.fbo = FrameBuffer(self.viewport.w, self.viewport.h)
+
+        with self.fbo:
+            gl.glClearColor(1.0, 1.0, 1.0, 1.0)
+            gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+            gl.glPushAttrib(gl.GL_ALL_ATTRIB_BITS)
+            yield
+            gl.glPopAttrib()
+        self.render()
+        gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+
+    def render(self):
+        """Render all lights."""
+        lighting_shader.bind()
+        gl.glEnable(gl.GL_TEXTURE_2D)
+        gl.glActiveTexture(gl.GL_TEXTURE0)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.fbo.textures[0])
+        lighting_shader.uniformi('diffuse_tex', 0)
+        lighting_shader.uniformf('viewport', *self.viewport.bounds())
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
-        lighting_shader.bind()
         for light in self.lights:
             self.render_light(light)
+        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
         lighting_shader.unbind()
 
     def render_light(self, light):
-        occluders = []
+        volumes = []
         x, y = light.pos
 
-        l = x - 3
-        r = x + 3
-        b = y - 3
-        t = y + 3
+        l = x - 6
+        r = x + 6
+        b = y - 6
+        t = y + 6
 
-        occluders.append(
+        volumes.append(
             lightvolume.rect(
                 (l - 1) * self.tilew, (r + 1) * self.tilew,
-                (b - 1) * self.tileh, (t + 1) * self.tileh,
+                (b - 1) * self.tilew, (t + 1) * self.tilew,
             )
         )
 
         for tx in range(int(floor(l)), int(ceil(r))):
             for ty in range(int(floor(b)), int(ceil(t))):
-                if self.occluders.get((tx, ty)):
-                    occluders.append(
+                if self.shadow_casters.get((tx, ty)):
+                    volumes.append(
                         lightvolume.rect(
                             tx * self.tilew, (tx + 1) * self.tilew,
-                            ty * self.tileh, (ty + 1) * self.tileh
+                            ty * self.tilew, (ty + 1) * self.tilew
                         )
                     )
 
         wx = x * self.tilew
-        wy = y * self.tileh
+        wy = y * self.tilew
         lighting_shader.uniformf('light_pos', wx, wy)
         lighting_shader.uniformf('light_color', *light.color)
         lighting_shader.uniformf('attenuation', light.attenuation)
         lighting_shader.uniformf('exponent', light.exponent)
-        lightvolume.draw_light((wx, wy), occluders)
+        lightvolume.draw_light((wx, wy), volumes)

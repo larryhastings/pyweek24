@@ -40,7 +40,7 @@ import tmx
 # from wasabi.geom.vector import unit_x as vector_unit_x
 # from wasabi.geom.vector import unit_y as vector_unit_y
 
-from maprenderer import MapRenderer, Viewport
+from maprenderer import MapRenderer, Viewport, LightRenderer, Light
 
 
 key = pyglet.window.key
@@ -54,6 +54,12 @@ pyglet.resource.reindex()
 
 viewport = Viewport(*window.get_size())
 debug_viewport = Viewport(50, 50)
+
+
+player_light = Light((10, 10))
+
+lighting = LightRenderer(viewport)
+lighting.add_light(player_light)
 
 
 def _clamp(c, other):
@@ -130,8 +136,10 @@ class Level:
 
         self.tiles = tmx.TileMap.load(tmx_path)
         self.maprenderer = MapRenderer(self.tiles)
+        lighting.shadow_casters = self.maprenderer.shadow_casters
         self.collision_gids = self.maprenderer.collision_gids
         self.tilew = self.maprenderer.tilew
+        lighting.tilew = self.tilew  # ugh, sorry
 
     def map_to_world(self, x, y=None):
         if y is None:
@@ -634,7 +642,7 @@ class Player:
         self.position = level.map_to_world(*self.body.position)
         self.sprite.set_position(*self.position)
         viewport.pos = self.sprite.position
-        level.maprenderer.lights[0].pos = self.body.position
+        player_light.pos = self.body.position
 
     def on_update_velocity(self, body, gravity, damping, dt):
         velocity = Vec2d(self.speed) * 0.1
@@ -746,14 +754,14 @@ def on_key_release(symbol, modifiers):
 def on_draw():
     window.clear()
     with viewport:
-        level.on_draw()
-        game.on_draw()
+        with lighting.illuminate():
+            level.on_draw()
+            game.on_draw()
         player.on_draw()
         default_system.draw()
     # with debug_viewport:
     #     glScalef(8.0, 8.0, 8.0)
     #     level.space.debug_draw(level.draw_options)
-
 
 
 def on_update(dt):
