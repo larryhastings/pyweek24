@@ -66,20 +66,19 @@ class MapRenderer:
         self.collision_gids = set()
         rows = (tileset.tilecount + tileset.columns - 1) // tileset.columns
         tiles = iter(tileset.tiles)
-        for y in range(rows):
-            for x in range(tileset.columns):
-                gid = x + y * tileset.columns + tileset.firstgid
-                tex = self.tiles_tex[(rows - 1 - y), x]
-                tex.anchor_x = 0  # tex.width // 2
-                tex.anchor_y = 0  # tex.height // 2
-                self.tiles[gid] = tex
 
-                # Load which gids are collidable here
-                tile = next(tiles, None)
-                if tile:
-                    props = {p.name: p.value for p in tile.properties}
-                    if props.get('wall') == '1':
-                        self.collision_gids.add(gid)
+        for tile in tileset.tiles:
+            y, x = divmod(tile.id, tileset.columns)
+            gid = tileset.firstgid + tile.id
+            tex = self.tiles_tex[(rows - 1 - y), x]
+            tex.anchor_x = 0  # tex.width // 2
+            tex.anchor_y = 0  # tex.height // 2
+            self.tiles[gid] = tex
+
+            # Load which gids are collidable here
+            props = {p.name: p.value for p in tile.properties}
+            if props.get('wall') == '1':
+                self.collision_gids.add(gid)
 
         self.sprites = {}
         for layernum, layer in enumerate(tmxfile.layers):
