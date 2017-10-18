@@ -4,3 +4,4 @@ pymunk
 six
 tmx==1.9.1
 wasabi.geom
+lightvolume

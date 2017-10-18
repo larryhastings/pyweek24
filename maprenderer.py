@@ -121,8 +121,8 @@ class MapRenderer:
 
         occluders.append(
             lightvolume.rect(
-                l * self.tilew, r * self.tilew,
-                b * self.tileh, t * self.tileh,
+                (l - 2) * self.tilew, (r + 2) * self.tilew,
+                (b - 2) * self.tileh, (t + 2) * self.tileh,
             )
         )
 
@@ -135,6 +135,7 @@ class MapRenderer:
                             ty * self.tileh, (ty + 1) * self.tileh
                         )
                     )
+
         wx = x * self.tilew
         wy = y * self.tileh
         gl.glColor4f(*light.color)
