@@ -64,7 +64,6 @@ class MapRenderer:
         # Build mapping of tile texture by gid
         self.tiles = {}
         self.collision_gids = set()
-        tileset.columns = 8  # FIXME: load from TMX
         rows = (tileset.tilecount + tileset.columns - 1) // tileset.columns
         tiles = iter(tileset.tiles)
         for y in range(rows):
