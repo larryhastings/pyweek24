@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.0" orientation="orthogonal" renderorder="right-up" width="50" height="50" tilewidth="32" tileheight="32" nextobjectid="1">
- <tileset firstgid="1" name="Mars" tilewidth="32" tileheight="32" tilecount="64">
+<map version="1.0" tiledversion="2017.10.11" orientation="orthogonal" renderorder="right-up" width="50" height="50" tilewidth="32" tileheight="32" infinite="0" nextobjectid="1">
+ <tileset firstgid="1" name="Mars" tilewidth="32" tileheight="32" tilecount="64" columns="8">
   <image source="gfx/mars_tiles.png" width="256" height="256"/>
   <terraintypes>
    <terrain name="Wall" tile="-1"/>
@@ -88,7 +88,7 @@
  </tileset>
  <layer name="Map" width="50" height="50">
   <data encoding="base64" compression="zlib">
-   eJy1WWtPwzAMLLABWyqx//9rWSUqmZN9PjvZB2td2zh+nF/pbdu2W0B3uL6be4Oss7Q7vNg+7F5GuCbjcT7fJ/e16+7AA+00zK/yHiPksTvPIz6e7hEfpivzecZHxcIMMTuqe0XvfT3pM6BvkSfzj/cMY1KNQ0bXJ70FdBVspdgxw0p3D3s/0uNi9FiJQ/ZO5hebFzFOUA+LK6bHAN547f23cqI+4+/9bkwesr4bQlxFOWh1DsgIfYUxlunRwcSZu5W42B0ZFYxV/WH3i2RT5I2wqPo1y3s/2/88a/XAZ+fayMersKbw8Xqh8/qw/8XQhyEld1kds7qr9hYV/T1MRbXkVbTCl109VHupOFHrR0aHrBgjnh4Dfqu0N9ZXet5D1oegB7NLJlsnJ1T9rvRa0T5VfA/YO/LxDnaL8q/tVap6eDOBarsVPa4ny0G2XiA9gv3ZzBW9h3wGWVvxs1dfO3NXlxTfVOTxamS0HvEdyXTGTiZr9Dyboe1/G6de78z6aSafKoO9p9Z5zAvV3i+TVe1LOjiKcnY01zDdvLmpkt9V/ZRaG+VkJU97mKzYOZtNov2rc0o2mzLMqbVcwZDll+VQVhur8mT+8/Ib5o/uXKietczW3mrOtbmr2u8ocnt8lRjx8LC6L1F4zpxLRX0gxq1Xs5i/qj0/9kGrbajubfXLzsG6/sM6MqvvqrhVfRDZ5exfuzWdxXc1/6h9dCdXKt8Pumc/VXx550YdzLDaqNjeYrqbTxU92Nkh1kSWnzsx1z1DU3qBGZtU5Fdm7QzD6qyb0RD4VL8DVM7a2QwYzZER/jIfR1ic8etMnlJsU7F79r1EkYnlCGZ39JW6XzaDsm9mCvZwbqjM6zPf2CoYzHSx/SGbTTIsq3t7cZTZTe1bVtvTw4i12yp7vMLvbBaqYj2rqWr9U+rNrL1WzBbeGbo951NmB6X/wvc833Rm0O5ZcrVeRfUxq9FVH1XqcIfvL7gRWBw=
+   eJy1WWtvwjAMZBtsQCqN//9rR6VVsk4+++ykHyxK2zh+nF/p43K5PAg94fpp7o1gnaXN4RXtE93LCNdkPI7n2+S+dt0TeKCdhvlV3osIeWzOc8bH053xiXSNfJ7xUbEwQ5Ed1b3Yez9v+iZ0F3lG/vGeYUyqcRjR7U0fhG6CrRQ7Zljp7mHvMz2uRo+VOIzeyfxi8yLGCephcRXpMYA3Xnv/rZyoz/h/vxuTu6yfhhBXLAetzgEZoa8wxjI9Opg4crcSF5sjo4Kxqj/sfodsLL+dRUwva6df8/4d9MBnx1rm41VYU/h4vdBxvdv/aujLkJK7rI5Z3VV7i4r+HqZYLTmLVviyq4dqLxUnav3IaJcVY8TTY8BvlbbG+krPu8v6EvSI7JLJ1skJVb8rvRbbp4rvAXszH29gN5Z/ba9S1cObCVTbrehxPVl2svUC6UX2j2Yu9h7yGcHaip+9/rkzd3VJ8U1FHq9GsvWIbybTETuZrOx5NkPb/zZOvd456qcj+VQZ7D21zmNeYH2pikuW12dx6a1nOZvNNZFu3txUye+qfkqtZTlZydMeJit2zmYTtn91Tslm0whzai1XMGT5ZTk0qo1VeTL/efkN80d3LlTPWmZrbzXn2txV7XcUuT2+Sox4eFjdlyg8Z86lWB+IcevVrMhf1Z4f+6DVNlT3tvpl52Bd/2EdmdV3VdyqPmB2OfrXbk2P4ruaf9Q+upMrle8H3bOfKr68c6MOZqLaqNjeYrqbTxU9om8DWBOj/NyJue4ZmtILzNikIr8ya2cYVmfdjIbAp/odoHLWHs2AbI5k+Mt8zLA449eZPKXYpmL37HuJIlOUIyK7o6/U/bIZNPpmpmAP54bKvD7zja2CwUwX2x9Gs0mGZXVvL44yu6l9yxnfEBEj1m6r7HGG36NZqIr1rKaq9U+pN7P2WjFbeGfo9pxPmR2U/gvf83zTmUG7Z8nVesXqY1ajqz6q1OEO3z9vCFe+
   </data>
  </layer>
  <layer name="Game elements" width="50" height="50">
