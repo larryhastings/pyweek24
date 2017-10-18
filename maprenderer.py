@@ -1,7 +1,10 @@
+from math import floor, ceil
+
 import pyglet.graphics
 import pyglet.sprite
 from pyglet import gl
 from shader import Shader
+import lightvolume
 
 from json_map import get_texture_sequence
 
@@ -29,9 +32,16 @@ class Viewport:
         gl.glPopMatrix()
 
 
+class Light:
+    def __init__(self, pos=(0, 0), color=(1.0, 1.0, 1.0, 0.2)):
+        self.pos = pos
+        self.color = color
+
+
 class MapRenderer:
     def __init__(self, tmxfile):
-        self.light = 10, 10
+        self.lights = [Light((10, 10))]
+        self.occluders = {}  # quick spatial hash of shadow casting tiles
         self.load(tmxfile)
 
     def load(self, tmxfile):
@@ -66,8 +76,8 @@ class MapRenderer:
             for x in range(tileset.columns):
                 gid = x + y * tileset.columns + tileset.firstgid
                 tex = self.tiles_tex[(rows - 1 - y), x]
-                tex.anchor_x = tex.width // 2
-                tex.anchor_y = tex.height // 2
+                tex.anchor_x = 0  # tex.width // 2
+                tex.anchor_y = 0  # tex.height // 2
                 self.tiles[gid] = tex
 
                 # Load which gids are collidable here
@@ -91,7 +101,42 @@ class MapRenderer:
                     batch=self.batch,
                     usage="static"
                 )
+                if tile.gid in self.collision_gids:
+                    self.occluders[x, y] = True
                 self.sprites[x, y] = sprite
 
     def render(self):
         self.batch.draw()
+        for light in self.lights:
+            self.render_light(light)
+
+    def render_light(self, light):
+        occluders = []
+        x, y = light.pos
+
+        l = x - 5
+        r = x + 5
+        b = y - 5
+        t = y + 5
+
+        occluders.append(
+            lightvolume.rect(
+                l * self.tilew, r * self.tilew,
+                b * self.tileh, t * self.tileh,
+            )
+        )
+
+        for tx in range(int(floor(l)), int(ceil(r))):
+            for ty in range(int(floor(b)), int(ceil(t))):
+                if self.occluders.get((tx, ty)):
+                    occluders.append(
+                        lightvolume.rect(
+                            tx * self.tilew, (tx + 1) * self.tilew,
+                            ty * self.tileh, (ty + 1) * self.tileh
+                        )
+                    )
+        wx = x * self.tilew
+        wy = y * self.tileh
+        gl.glColor4f(*light.color)
+        lightvolume.draw_light((wx, wy), occluders)
+        gl.glColor4f(1.0, 1.0, 1.0, 1.0)

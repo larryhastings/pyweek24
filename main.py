@@ -423,8 +423,8 @@ class Player:
         self.body.position = Vec2d(self.position.x, self.position.y)
         self.body.velocity_func = self.on_update_velocity
 
-        # make player a circle with radius 0.4
-        self.shape = pymunk.Circle(self.body, 0.4)
+        # make player a circle with radius 0.3
+        self.shape = pymunk.Circle(self.body, 0.3)
         level.space.add(self.body, self.shape)
 
     def calculate_speed(self):
@@ -504,6 +504,7 @@ class Player:
     def on_player_move(self):
         self.sprite.set_position(*level.map_to_world(*self.body.position))
         viewport.pos = self.sprite.position
+        level.maprenderer.lights[0].pos = self.body.position
 
     def on_update_velocity(self, body, gravity, damping, dt):
         velocity = Vec2d(self.speed.x, self.speed.y) * 0.1
