@@ -5,9 +5,6 @@ import os
 import pprint
 import sys
 
-# checked in, got from https://github.com/reidrac/pyglet-tiled-json-map.git
-import json_map
-
 # built from source, removed "inline" from Group_kill_p in */group.h
 import lepton
 
@@ -43,14 +40,19 @@ import tmx
 # from wasabi.geom.vector import unit_x as vector_unit_x
 # from wasabi.geom.vector import unit_y as vector_unit_y
 
+from maprenderer import MapRenderer, Viewport
+
+
 key = pyglet.window.key
 EVENT_HANDLED = pyglet.event.EVENT_HANDLED
 
 window = pyglet.window.Window()
 
-pyglet.resource.path = [".", "gfx/kenney_roguelike/Spritesheet"]
+pyglet.resource.path = [".", "gfx", "gfx/kenney_roguelike/Spritesheet"]
 pyglet.resource.reindex()
 
+
+viewport = Viewport(*window.get_size())
 
 
 def _clamp(c, other):
@@ -101,39 +103,37 @@ class Level:
     def __init__(self, basename):
         self.load(basename)
 
-        self.map.set_viewport(0, 0, window.width, window.height)
-        self.background_tiles, self.collision_tiles, self.player_position_tiles = (layer.tiles for layer in self.tiles.layers)
+        self.collision_tiles, self.player_position_tiles = (layer.tiles for layer in self.tiles.layers)
         self.upper_left = Vec2d(vector_zero)
         self.lower_right = Vec2d(
-            self.tiles.width * self.tiles.tilewidth,
-            self.tiles.height * self.tiles.tileheight,
+            self.tiles.width,
+            self.tiles.height
             )
 
-        self.foreground_sprite_group = pyglet.graphics.OrderedGroup(self.map.last_group + 1)
+        self.foreground_sprite_group = pyglet.graphics.OrderedGroup(1)
+
+        self.space = pymunk.Space()
+        self.draw_options = pymunk.pyglet_util.DrawOptions()
+        self.space.gravity = (0, 0)
         self.construct_collision_geometry()
-       
 
     def load(self, basename):
         # we should always save the tmx file
         # then export the json file
         # this function will detect that that's true
-        json_path = basename + ".json"
         tmx_path = basename + ".tmx"
         try:
-            json_stat = os.stat(json_path)
             tmx_stat = os.stat(tmx_path)
         except FileNotFoundError:
-            sys.exit(f"Couldn't find both json and tmx for basename {basename}!")
-
-        if tmx_stat.st_mtime >= json_stat.st_mtime:
-            sys.exit(f"{json_path} map file out of date! Export JSON from {tmx_path}.")
-
-        with pyglet.resource.file(json_path) as f:
-            self.map = json_map.Map.load_json(f)
+            sys.exit(f"Couldn't find tmx for basename {basename}!")
 
         self.tiles = tmx.TileMap.load(tmx_path)
+        self.maprenderer = MapRenderer(self.tiles)
+        self.collision_gids = self.maprenderer.collision_gids
+        self.tilew = self.maprenderer.tilew
 
-        return self.map
+    def map_to_world(self, x, y):
+        return x * self.tilew, y * self.tilew
 
     def construct_collision_geometry(self):
         """
@@ -151,11 +151,12 @@ class Level:
             nonlocal startx
             nonlocal in_rect
             in_rect = False
-            rect = ((startx, y), (x, y+self.tiles.tileheight))
+            rect = ((startx, y), (x, y + 1))
             x_rects.add(rect)
 
-        for y in range(0, self.tiles.height * self.tiles.tileheight, self.tiles.tileheight):
-            for x in range(0, self.tiles.width * self.tiles.tilewidth, self.tiles.tilewidth):
+        for y in range(0, self.tiles.height):
+            y = self.tiles.height - y - 1
+            for x in range(0, self.tiles.width):
                 tile = self.collision_tile_at(x, y)
                 if tile:
                     if not in_rect:
@@ -164,7 +165,7 @@ class Level:
                 elif in_rect:
                     finish_rect()
             if in_rect:
-                x += self.tiles.tilewidth
+                x += 1
                 finish_rect()
 
         # sort fns for sorting lists of rects
@@ -190,8 +191,8 @@ class Level:
             new_start_y = start_y
             new_end_y = end_y
             while True:
-                new_start_y += self.tiles.tileheight
-                new_end_y += self.tiles.tileheight
+                new_start_y += 1
+                new_end_y += 1
                 nextrect = ((start_x, new_start_y), (end_x, new_end_y))
                 if nextrect not in x_rects:
                     break
@@ -250,7 +251,7 @@ class Level:
                 #
                 # 3. rrrrrrrr       overlap, r2 is inside r
                 #      r2r2
-                #     
+                #
                 # 4.   rrrr         overlap, r is inside r2
                 #    r2r2r2r2
                 #
@@ -269,7 +270,7 @@ class Level:
 
         # pass 4:
         # construct "blobs" of touching rects.
-        # 
+        #
         # pull out a rect and put it in a set.
         # then pull out all rects that touch it and put them in the set too,
         # and all rects that touch *that*, ad infinitum.
@@ -357,10 +358,8 @@ class Level:
         add_box_from_bb((Vec2d(self.lower_right.x, boundary_upper_left.y), boundary_lower_right))
         add_box_from_bb((Vec2d(boundary_upper_left.x, self.lower_right.y), boundary_lower_right))
 
-
-
     def on_draw(self):
-        self.map.draw()
+        self.maprenderer.render()
 
     def position_to_tile_index(self, x, y=None):
         if y is None:
@@ -369,21 +368,21 @@ class Level:
             assert len(x) == 2
             y = x[0]
             x = x[1]
-        index = int(((y // self.tiles.tileheight) * (self.tiles.width)) +
-            (x // self.tiles.tilewidth))
+        y = self.tiles.height - y - 1
+        index = y * self.tiles.width + x
         assert index < len(self.collision_tiles)
         return index
 
     def tile_index_to_position(self, index):
-        y = (index // self.tiles.width)
+        y = self.tiles.height - (index // self.tiles.width) - 1
         x = index - (y * self.tiles.width)
-        y *= self.tiles.tileheight
-        x *= self.tiles.tilewidth
+#        y *= self.tiles.tileheight
+#        x *= self.tiles.tilewidth
         return Vec2d(x, y)
 
     def collision_tile_at(self, x, y=None):
-        return self.collision_tiles[self.position_to_tile_index(x, y)].gid
-
+        gid = self.collision_tiles[self.position_to_tile_index(x, y)].gid
+        return gid in self.collision_gids
 
 
 bullet_freelist = []
@@ -506,8 +505,8 @@ class Player:
         self.movement_keys = []
         # coordinate system has (0, 0) at upper left
         self.movement_vectors = {
-            key.UP:    vector_unit_y * -1,
-            key.DOWN:  vector_unit_y,
+            key.UP:    vector_unit_y,
+            key.DOWN:  vector_unit_y * -1,
             key.LEFT:  vector_unit_x * -1,
             key.RIGHT: vector_unit_x,
             }
@@ -521,7 +520,9 @@ class Player:
         self.shoot_waiting = 1
 
         self.image = pyglet.image.load("player.png")
-        self.sprite = pyglet.sprite.Sprite(self.image, batch=level.map.batch, group=level.foreground_sprite_group)
+        self.image.anchor_x = self.image.width // 2
+        self.image.anchor_y = self.image.height // 2
+        self.sprite = pyglet.sprite.Sprite(self.image)
 
         # self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
@@ -530,8 +531,10 @@ class Player:
         # print("PLAYER BODY", hex(id(self.body)), self.body)
 
         # make player a circle with diameter the same as tile width (and tile height)
-        assert level.tiles.tileheight == level.tiles.tilewidth
-        self.shape = pymunk.Circle(self.body, level.tiles.tilewidth >> 1)
+        # assert level.tiles.tileheight == level.tiles.tilewidth
+        # self.shape = pymunk.Circle(self.body, level.tiles.tilewidth >> 1)
+        # make player a circle with radius 0.3
+        self.shape = pymunk.Circle(self.body, 0.3)
         self.shape.collision_type = CollisionType.PLAYER
         self.shape.filter = level.player_collision_filter
         level.space.add(self.body, self.shape)
@@ -611,22 +614,14 @@ class Player:
         return pyglet.event.EVENT_HANDLED
 
     def on_player_move(self):
-        # print("PLAYER MOVE based on body", hex(id(self.body)), self.body)
-        p = Vec2d(self.body.position)
-        # print("PLAYER POSITION", p)
-        self.sprite.position = (
-            transform_pymunk_to_screen(p) -
-            Vec2d(level.tiles.tilewidth >> 1, level.tiles.tileheight >> 1)
-            )
-        # print("PLAYER SPRITE POSITION", self.sprite.position)
-        level.map.set_focus(p)
-        self.position = p
+        self.position = level.map_to_world(*self.body.position)
+        self.sprite.set_position(*self.position)
+        viewport.pos = self.sprite.position
+        level.maprenderer.lights[0].pos = self.body.position
 
     def on_update_velocity(self, body, gravity, damping, dt):
-
-        # print("PLAYER UPDATE VELOCITY BODY", hex(id(self.body)), self.body)
-        # print("PLAYER UPDATE VELOCITY PASSED IN BODY", hex(id(body)), body)
-        velocity = Vec2d(self.speed)
+        velocity = Vec2d(self.speed) * 0.1
+        body.velocity = velocity
         self.body.velocity = velocity
 
     def on_update(self, dt):
@@ -635,18 +630,19 @@ class Player:
         # instead of assuming it's 1/60 of a second
         self.calculate_speed()
         self.shoot_waiting -= 1
-        if self.shoot_waiting <= 0:
-            self.shoot_waiting = self.shoot_cooldown
-            b = new_bullet()
+        # if self.shoot_waiting <= 0:
+        #     self.shoot_waiting = self.shoot_cooldown
+        #     b = new_bullet()
 
     def on_draw(self):
-        # we're actually drawn as part of the batch for the tiles
-        pass
+        self.sprite.draw()
 
 
 
 game = Game()
-level = Level("prototype")
+# level = Level("prototype")
+level = Level("level1")
+
 
 player = Player()
 player.on_player_move()
@@ -732,17 +728,18 @@ def on_key_release(symbol, modifiers):
 @window.event
 def on_draw():
     window.clear()
-    level.on_draw()
-    player.on_draw()
-    game.on_draw()
-    fire_on_draw()
+    with viewport:
+        level.on_draw()
+        game.on_draw()
+        player.on_draw()
+        default_system.draw()
 
 
 
 def on_update(dt):
     if game.paused:
         return
-            
+
     player.on_update(dt)
     level.space.step(dt)
     # print()
@@ -842,6 +839,9 @@ def on_resize(width, height):
     gluPerspective(70, 1.0*width/height, 0.1, 1000.0)
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
+
+    viewport.w = width
+    viewport.h = height
 # window.on_resize = on_resize
 
 yrot = 0.0
@@ -860,8 +860,7 @@ default_system.add_global_controller(
 MEAN_FIRE_INTERVAL = 3.0
 
 def fire(dt=None):
-    x = player.position.x
-    y = window.height - player.position.y - 1
+    x, y = player.sprite.position
     Kaboom((x, y))
     pyglet.clock.schedule_once(fire, expovariate(1.0 / (MEAN_FIRE_INTERVAL - 1)) + 1)
 
@@ -869,30 +868,6 @@ def fire(dt=None):
 fire()
 pyglet.clock.schedule_interval(default_system.update, (1.0/30.0))
 pyglet.clock.set_fps_limit(None)
-
-
-def fire_on_draw():
-    global yrot
-    with level.map:
-        default_system.draw()
-        # level.space.debug_draw(level.draw_options)
-    '''
-    glBindTexture(GL_TEXTURE_2D, 1)
-    glEnable(GL_TEXTURE_2D)
-    glEnable(GL_POINT_SPRITE)
-    glPointSize(100);
-    glBegin(GL_POINTS)
-    glVertex2f(0,0)
-    glEnd()
-    glBindTexture(GL_TEXTURE_2D, 2)
-    glEnable(GL_TEXTURE_2D)
-    glEnable(GL_POINT_SPRITE)
-    glPointSize(100);
-    glBegin(GL_POINTS)
-    glVertex2f(50,0)
-    glEnd()
-    glBindTexture(GL_TEXTURE_2D, 0)
-    '''
 
 
 pyglet.app.run()
