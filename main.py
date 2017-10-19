@@ -447,8 +447,23 @@ class Level:
         self.draw_options = pymunk.pyglet_util.DrawOptions()
         self.space.gravity = (0, 0)
 
-        self.player_collision_filter = pymunk.ShapeFilter(group=CollisionType.PLAYER | CollisionType.PLAYER_BULLET)
-        self.robot_collision_filter = pymunk.ShapeFilter(group=CollisionType.ROBOT | CollisionType.ROBOT_BULLET)
+        # filter only lets through things that cares about
+        # e.g. "player collision filter" masks out things the player shouldn't collide with
+        self.player_collision_filter = pymunk.ShapeFilter(
+            group=CollisionType.PLAYER,
+            mask=pymunk.ShapeFilter.ALL_MASKS ^ (CollisionType.PLAYER | CollisionType.PLAYER_BULLET))
+
+        self.player_bullet_collision_filter = pymunk.ShapeFilter(
+            group=CollisionType.PLAYER_BULLET,
+            mask=pymunk.ShapeFilter.ALL_MASKS ^ (CollisionType.PLAYER | CollisionType.PLAYER_BULLET))
+
+        self.robot_collision_filter = pymunk.ShapeFilter(
+            group=CollisionType.ROBOT_BULLET,
+            mask=pymunk.ShapeFilter.ALL_MASKS ^ (CollisionType.ROBOT | CollisionType.ROBOT_BULLET))
+
+        self.robot_bullet_collision_filter = pymunk.ShapeFilter(
+            group=CollisionType.ROBOT_BULLET,
+            mask=pymunk.ShapeFilter.ALL_MASKS ^ (CollisionType.ROBOT | CollisionType.ROBOT_BULLET))
 
         for (type1, type2, fn) in (
             (CollisionType.PLAYER_BULLET, CollisionType.WALL,   on_player_bullet_hit_wall),
@@ -537,12 +552,14 @@ class Level:
 
 player_bullet_freelist = []
 robot_bullet_freelist = []
+
 # these are lists of bullets that died during this tick.
 # we don't stick them immediately into the freelist,
 # because they might still be churning around inside pymunk.
 # so we add them to the end of freelist at the end of the tick.
 player_bullets_finishing_tick = []
 robot_bullets_finishing_tick = []
+
 shape_to_bullet = {}
 
 bullet_flare = pyglet.image.load("flare3.png")
@@ -621,7 +638,7 @@ class PlayerBullet(Bullet):
         self.speed = 40
         super().__init__(damage)
         self.shape.collision_type = CollisionType.PLAYER_BULLET
-        self.shape.filter = level.player_collision_filter
+        self.shape.filter = level.player_bullet_collision_filter
 
     def initialize(self, damage=DEFAULT_DAMAGE):
         reticle_vector = Vec2d(reticle.offset).normalized()
@@ -647,7 +664,7 @@ class RobotBullet(Bullet):
         self.speed = 20
         super().__init__(robot, damage)
         self.shape.collision_type = CollisionType.ROBOT_BULLET
-        self.shape.filter = level.robot_collision_filter
+        self.shape.filter = level.robot_bullet_collision_filter
 
     def initialize(self, robot, damage=DEFAULT_DAMAGE):
         self.robot = robot
@@ -707,12 +724,6 @@ def bullet_collision(entity, arbiter):
     if callback:
         callback(entity_shape)
 
-    # print("--collision--")
-    # print(f"  player position {player.position}")
-    # print(f"  bullet {bullet}")
-    # print(f"  hit wall shape {wall_shape.bb}")
-    # print(f"  at {bullet.body.position}")
-    # print(f"  bullet has radius {bullet.radius}")
     if bullet and bullet in bullets:
         bullet.close()
     return False
@@ -962,20 +973,110 @@ def is_moving(v):
     return v.get_length_sqrd() > 1e-3
 
 
+
+
 robots = set()
 shape_to_robot = {}
+
+
+
+class Behaviour: # Dan, you're welcome, you don't know how much I want to omit the 'u'
+    def __init__(self, robot):
+        self.robot = robot
+        # automatically add our overloaded callback
+        # to the appropriate list in the robot
+        # if we add new overloads, just add the string to this enumeration
+        for callback_name in (
+            "on_collision_wall",
+            "on_damage",
+            "on_died",
+            "on_update",
+            ):
+            class_method = getattr(self.__class__, callback_name)
+            base_class_method = getattr(Behaviour, callback_name)
+            if class_method != base_class_method:
+                callbacks = getattr(robot, callback_name + "_callbacks")
+                callbacks.append(getattr(self, callback_name))
+
+    def on_update(self, dt):
+        pass
+
+    def on_collision_wall(self, wall_shape):
+        pass
+
+    def on_damage(self, damage):
+        pass
+
+    def on_died(self):
+        pass
+
+
+class ShootConstantly(Behaviour):
+    shoot_waiting = shoot_cooldown = 180
+
+    def on_update(self, dt):
+        if self.shoot_waiting > 0:
+            self.shoot_waiting -= 1
+            return
+
+        self.shoot_waiting = self.shoot_cooldown
+        b = new_robot_bullet(self.robot)
+
+
+class ShootOnlyWhenPlayerIsVisible(Behaviour):
+    shoot_waiting = shoot_cooldown = 180
+
+    def on_update(self, dt):
+        if self.shoot_waiting > 0:
+            self.shoot_waiting -= 1
+            return
+
+        collision = level.space.segment_query_first(self.robot.position,
+            player.position,
+            player.radius / 3, # TODO this shouldn't be hard-coded
+            level.robot_bullet_collision_filter)
+        if collision and collision.shape == player.shape:
+            self.shoot_waiting = self.shoot_cooldown
+            b = new_robot_bullet(self.robot)
+
+
+class MoveRandomly(Behaviour):
+    countdown = 0
+    def __init__(self, robot):
+        super().__init__(robot)
+        # how many units per second
+        self.speed = (1 + (random.random() * 2.5))
+
+    def pick_new_vector(self):
+        # how many 1/120 tics should we move in this direction?
+        self.countdown = random.randint(60, 240)
+        self.theta = random.random() * (2 * math.pi)
+        self.robot.velocity = Vec2d(self.speed, 0)
+        self.robot.velocity.rotate(self.theta)
+
+    def on_collision_wall(self, wall_shape):
+        self.pick_new_vector()
+
+    def on_update(self, dt):
+        if self.countdown > 0:
+            self.countdown -= 1
+            return
+        self.pick_new_vector()
+
 
 
 class Robot:
     # used only to calculate starting position of bullet
     radius = 0.7071067811865476
 
-    shooting = False
-    shoot_waiting = shoot_cooldown = 180
-
     def __init__(self, position, evolution=0):
         self.position = Vec2d(position)
         self.velocity = Vec2d(0, 0)
+
+        self.on_update_callbacks = []
+        self.on_collision_wall_callbacks = []
+        self.on_damage_callbacks = []
+        self.on_died_callbacks = []
 
         self.health = 100
 
@@ -999,6 +1100,10 @@ class Robot:
         self.body.velocity = velocity
 
     def on_damage(self, damage):
+        for fn in self.on_damage_callbacks:
+            if fn(damage):
+                return
+
         self.health -= damage
         if self.health <= 0:
             self.on_died()
@@ -1010,13 +1115,9 @@ class Robot:
         if is_moving(self.body.velocity):
             self.sprite.angle = self.body.velocity.angle
 
-        if not self.shooting:
-            return
-        if self.shoot_waiting:
-            self.shoot_waiting -= 1
-        if self.shooting and self.shoot_waiting <= 0:
-            self.shoot_waiting = self.shoot_cooldown
-            b = new_robot_bullet(self)
+        for fn in self.on_update_callbacks:
+            if fn(dt):
+                return
 
     def close(self):
         robots.discard(self)
@@ -1026,43 +1127,16 @@ class Robot:
 
 
     def on_died(self):
+        for fn in self.on_died_callbacks:
+            if fn():
+                return
         self.close()
         Kaboom(level.map_to_world(self.position))
 
-    def on_collision_wall(wall_shape):
-        pass
-
-
-class WanderingRobot(Robot):
-
-    shooting = True
-    shoot_waiting = shoot_cooldown = 180
-
-    def __init__(self, position, evolution=0):
-        super().__init__(position, evolution)
-        self.countdown = 1
-        # how many units per second
-        self.speed = (1 + (random.random() * 2.5))
-        robots.add(self)
-
-    def pick_new_vector(self):
-        # how many 1/120 tics shoudl we move in this direction
-        self.countdown = random.randint(60, 240)
-        self.theta = random.random() * (2 * math.pi)
-        self.velocity = Vec2d(self.speed, 0)
-        self.velocity.rotate(self.theta)
-        # print("wandering robot velocity is now", self.velocity)
-
     def on_collision_wall(self, wall_shape):
-        # print("Wandering robot hit wall, picking new vector")
-        # print("  ", end="")
-        self.pick_new_vector()
-
-    def on_update(self, dt):
-        super().on_update(dt)
-        self.countdown -= 1
-        if self.countdown <= 0:
-            self.pick_new_vector()
+        for fn in self.on_collision_wall_callbacks:
+            if fn(wall_shape):
+                return
 
 
 
@@ -1077,7 +1151,11 @@ reticle = Reticle()
 player = Player()
 player.on_player_moved()
 
-robot = WanderingRobot(player.position + Vec2d(5, -5))
+# robot = WanderingRobot(player.position + Vec2d(5, -5))
+robot = Robot(player.position + Vec2d(5, -5))
+# ShootConstantly(robot)
+ShootOnlyWhenPlayerIsVisible(robot)
+MoveRandomly(robot)
 
 keypress_handlers = {}
 def keypress(key):
