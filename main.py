@@ -1236,14 +1236,13 @@ from pyglet import image
 from pyglet.gl import *
 
 from lepton import Particle, ParticleGroup, default_system, domain
-from lepton.renderer import PointRenderer, BillboardRenderer
-from lepton.texturizer import SpriteTexturizer, create_point_texture
+from lepton.renderer import BillboardRenderer
+from lepton.texturizer import SpriteTexturizer
 from lepton.emitter import StaticEmitter, PerParticleEmitter
 from lepton.controller import Gravity, Lifetime, Movement, Fader, ColorBlender, Growth
 
 spark_tex = image.load(os.path.join(os.path.dirname(__file__), 'flare3.png')).get_texture()
 spark_texturizer = SpriteTexturizer(spark_tex.id)
-trail_texturizer = SpriteTexturizer(create_point_texture(8, 50))
 
 
 class Trail:
@@ -1306,6 +1305,7 @@ class Kaboom:
         spark_emitter = StaticEmitter(
             template=Particle(
                 position=(uniform(x - 5, x + 5), uniform(y - 5, y + 5), 0),
+                size=(16,) * 3,
                 color=color),
             deviation=Particle(
                 velocity=(gauss(0, 5), gauss(0, 5), 0),
@@ -1319,13 +1319,15 @@ class Kaboom:
                 ColorBlender([(0, (1,1,1,1)), (2, color), (self.lifetime, color)]),
                 Fader(fade_out_start=1.0, fade_out_end=self.lifetime * 0.5),
             ],
-            renderer=PointRenderer(abs(gauss(10, 3)), spark_texturizer))
+            renderer=BillboardRenderer(spark_texturizer)
+        )
 
         spark_emitter.emit(int(gauss(60, 40)) + 50, self.sparks)
 
         spread = abs(gauss(0.4, 1.0))
         self.trail_emitter = PerParticleEmitter(self.sparks, rate=uniform(5,30),
             template=Particle(
+                size=(10,) * 3,
                 color=color),
             deviation=Particle(
                 velocity=(spread, spread, spread),
@@ -1339,7 +1341,8 @@ class Kaboom:
                 Fader(max_alpha=0.75, fade_out_start=0, fade_out_end=gauss(self.lifetime, self.lifetime*0.3)),
                 self.trail_emitter
             ],
-            renderer=PointRenderer(10, trail_texturizer))
+            renderer=BillboardRenderer(spark_texturizer)
+        )
 
         pyglet.clock.schedule_once(self.die, self.lifetime * 2)
 
