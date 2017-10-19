@@ -901,7 +901,6 @@ class Player:
         viewport.position = self.sprite.position
         player_light.position = self.body.position
         reticle.on_player_moved()
-        self.sprite.angle = self.body.velocity.angle
 
     def on_update_velocity(self, body, gravity, damping, dt):
         velocity = Vec2d(self.velocity)
@@ -918,6 +917,8 @@ class Player:
         if self.shooting and self.shoot_waiting <= 0:
             self.shoot_waiting = self.shoot_cooldown
             b = new_player_bullet()
+
+        self.sprite.angle = reticle.theta
 
     def on_draw(self):
         self.sprite.draw()
@@ -968,6 +969,11 @@ class Reticle:
         # self.sprite.draw()
 
 
+def is_moving(v):
+    """Return True if a vector represents an object that is moving."""
+    return v.get_length_sqrd() > 1e-3
+
+
 robots = set()
 shape_to_robot = {}
 
@@ -1013,7 +1019,8 @@ class Robot:
         self.position = Vec2d(self.body.position)
         sprite_coordinates = level.map_to_world(self.position)
         self.sprite.position = sprite_coordinates
-        self.sprite.angle = self.body.velocity.angle
+        if is_moving(self.body.velocity):
+            self.sprite.angle = self.body.velocity.angle
 
         if not self.shooting:
             return
@@ -1185,8 +1192,10 @@ def on_mouse_release(x, y, button, modifiers):
 
 @window.event
 def on_draw():
+    gl.glClearColor(0, 0, 0, 1.0)
     window.clear()
     with viewport:
+        gl.glClearColor(0xae / 0xff, 0x51 / 0xff, 0x39 / 0xff, 1.0)
         with lighting.illuminate():
             level.on_draw()
             RobotSprite.draw_diffuse()
