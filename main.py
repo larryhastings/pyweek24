@@ -368,7 +368,7 @@ class Level:
             body = pymunk.Body(body_type=pymunk.Body.STATIC)
             body.position = Vec2d(center_x, center_y)
             shape = pymunk.Poly.create_box(body, (width, height))
-            print(f"bounding box, center {center_x} {center_y} width {width} height {height}")
+            # print(f"bounding box, center {center_x} {center_y} width {width} height {height}")
             shape.collision_type = CollisionType.WALL
             shape.elasticity = 0.0
             self.space.add(body, shape)
@@ -410,6 +410,7 @@ class Level:
 
 
 bullet_freelist = []
+bullets_finishing_tick = []
 shape_to_bullet = {}
 
 bullet_flare = pyglet.image.load("flare3.png")
@@ -417,20 +418,21 @@ bullet_flare = pyglet.image.load("flare3.png")
 class Bullet:
     offset = Vec2d(0.0, 0.0)
     def __init__(self):
-        print()
-        print("--")
-        print("-- bullet __init__")
+        # print()
+        # print("--")
+        # print("-- bullet __init__")
         self.image = bullet_flare
 
         # self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
-        self.speed = Vec2d(1, 0) * 25
+        self.speed = Vec2d(1, 0) * 40
         self.body.velocity_func = self.on_update_velocity
         # print("BULLET BODY", hex(id(self.body)), self.body)
 
         # makebullet a circle with diameter 1/2 the same as tile width (and tile height)
         assert level.tiles.tileheight == level.tiles.tilewidth
-        self.shape = pymunk.Circle(self.body, radius=level.tiles.tilewidth >> 2, offset=self.offset)
+        self.radius = player.radius / 3
+        self.shape = pymunk.Circle(self.body, radius=self.radius, offset=self.offset)
         self.shape.collision_type = CollisionType.PLAYER_BULLET
         self.shape.filter = level.player_collision_filter
         shape_to_bullet[self.shape] = self
@@ -439,9 +441,10 @@ class Bullet:
 
     def initialize(self):
         self.collided = False
-        self.position = Vec2d(player.position)
+        bullet_offset = Vec2d(player.radius + self.radius, 0)
+        self.position = Vec2d(player.position) + bullet_offset
         self.body.position = self.position
-        print(f"--initialize bullet! {self} initial position {self.position}")
+        # print(f"--initialize bullet! {self} initial position {self.position}")
         self.sprite = pyglet.sprite.Sprite(self.image, batch=level.bullet_batch, group=level.foreground_sprite_group)
         self.on_update(0)
         level.space.reindex_shapes_for_body(self.body)
@@ -450,7 +453,7 @@ class Bullet:
     def on_update(self, dt):
         old = self.position
         self.position = Vec2d(self.body.position)
-        print(f"--bullet update, from {old} to {self.position}")
+        # print(f"--bullet update, from {old} to {self.position}")
         sprite_coord = level.map_to_world(self.position)
         # TODO no idea why this seems necessary
         sprite_coord -= Vec2d(64, 64)
@@ -459,17 +462,17 @@ class Bullet:
     def on_update_velocity(self, body, gravity, damping, dt):
         # print("BULLET BODY", hex(id(self.body)), self.body)
         # print("PASSED IN BODY", hex(id(body)), body)
-        print(f"--update bullet velocity {self}")
+        # print(f"--update bullet velocity {self}")
         self.body.velocity = self.speed
         pass
 
     def close(self):
-        print(f"--closing bullet {self}")
+        # print(f"--closing bullet {self}")
         bullets.discard(self)
         level.space.remove(self.body, self.shape)
         self.sprite.delete()
         self.sprite = None
-        # bullet_freelist.append(self)
+        bullets_finishing_tick.append(self)
 
 def new_bullet():
     # return Bullet()
@@ -494,17 +497,20 @@ def on_bullet_hit_wall(arbiter, space, data):
     bullet_shape = arbiter.shapes[0]
     wall_shape = arbiter.shapes[1]
     bullet = shape_to_bullet.get(bullet_shape)
-    # only handle one collision for a bullet
-    # (we tell pymunk to forget about the bullet
+
+    # only handle the first collision for a bullet
+    # (we tell pymunk to forget about the bullet,
     # but it still finishes the current timestep)
     if bullet.collided:
         return False
     bullet.collided = True
-    print("--collision--")
-    print(f"  player position {player.position}")
-    print(f"  bullet {bullet}")
-    print(f"  hit wall shape {wall_shape.bb}")
-    print(f"  at {bullet.body.position}")
+
+    # print("--collision--")
+    # print(f"  player position {player.position}")
+    # print(f"  bullet {bullet}")
+    # print(f"  hit wall shape {wall_shape.bb}")
+    # print(f"  at {bullet.body.position}")
+    # print(f"  bullet has radius {bullet.radius}")
     if bullet and bullet in bullets:
         bullet.close()
     return False
@@ -553,7 +559,7 @@ class Player:
             key.LEFT: key.RIGHT,
             key.RIGHT: key.LEFT
             }
-        self.shoot_cooldown = 30
+        self.shoot_cooldown = 10
         self.shoot_waiting = 1
 
         self.image = pyglet.image.load("player.png")
@@ -566,9 +572,9 @@ class Player:
         self.body.position = Vec2d(self.position)
         self.body.velocity_func = self.on_update_velocity
 
-        player_shape_radius = level.world_to_map(self.image.width // 2, self.image.height // 2)
+        self.radius = level.world_to_map(self.image.width // 2, 0).x
         # player_shape_radius = Vec2d(0.5, 0.5)
-        self.shape = pymunk.Circle(self.body, player_shape_radius.x)
+        self.shape = pymunk.Circle(self.body, self.radius)
         self.shape.collision_type = CollisionType.PLAYER
         self.shape.filter = level.player_collision_filter
         self.shape.elasticity = 0.0
@@ -769,10 +775,10 @@ def on_draw():
     with viewport:
         with lighting.illuminate():
             level.on_draw()
-            game.on_draw()
         player.on_draw()
         level.bullet_batch.draw()
         default_system.draw()
+    game.on_draw()
     # with debug_viewport:
     #     glScalef(8.0, 8.0, 8.0)
     #     level.space.debug_draw(level.draw_options)
@@ -791,6 +797,9 @@ def on_update(dt):
         # print("BULLET", id(bullet), bullet.body.position)
         bullet.on_update(dt)
     # print()
+    if bullets_finishing_tick:
+        bullet_freelist.extend(bullets_finishing_tick)
+        bullets_finishing_tick.clear()
 
 pyglet.clock.schedule_interval(on_update, 1/120.0)
 
