@@ -49,6 +49,7 @@ key = pyglet.window.key
 EVENT_HANDLED = pyglet.event.EVENT_HANDLED
 
 window = pyglet.window.Window()
+window.set_exclusive_mouse(True)
 
 pyglet.resource.path = [".", "gfx", "gfx/kenney_roguelike/Spritesheet"]
 pyglet.resource.reindex()
@@ -200,7 +201,6 @@ class Game:
     def on_draw(self):
         if self.paused:
             self.pause_label.draw()
-
 
 
 class Level:
@@ -662,6 +662,8 @@ class Player:
             key.LEFT: key.RIGHT,
             key.RIGHT: key.LEFT
             }
+
+        self.shooting = False
         self.shoot_cooldown = 10
         self.shoot_waiting = 1
 
@@ -811,6 +813,7 @@ def key_escape(pressed):
     # print("SPACE", pressed)
     if pressed:
         game.paused = not game.paused
+        window.set_exclusive_mouse(not game.paused)
         player.on_pause_change()
 
 @keypress(key.UP)
@@ -868,6 +871,14 @@ def on_key_release(symbol, modifiers):
     if handler:
         handler(False)
         return EVENT_HANDLED
+
+@window.event
+def on_mouse_press(x, y, button, modifiers):
+    player.shooting = True
+
+@window.event
+def on_mouse_release(x, y, button, modifiers):
+    player.shooting = False
 
 
 @window.event
