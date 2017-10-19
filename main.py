@@ -49,11 +49,14 @@ from maprenderer import MapRenderer, Viewport, LightRenderer, Light
 key = pyglet.window.key
 EVENT_HANDLED = pyglet.event.EVENT_HANDLED
 
-window = pyglet.window.Window()
-window.set_exclusive_mouse(True)
-
 pyglet.resource.path = [".", "gfx", "gfx/kenney_roguelike/Spritesheet"]
 pyglet.resource.reindex()
+
+window = pyglet.window.Window()
+window.set_exclusive_mouse(True)
+window.set_caption("My Sincerest Apologies")
+window.set_icon(pyglet.image.load('gfx/icon32.png'), pyglet.image.load('gfx/icon16.png'))
+
 
 
 viewport = Viewport(*window.get_size())
@@ -558,15 +561,10 @@ class Bullet:
     offset = Vec2d(0.0, 0.0)
 
     def __init__(self, *args):
-        # print()
-        # print("--")
-        # print("-- bullet __init__")
         self.image = bullet_flare
 
-        # self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body.velocity_func = self.on_update_velocity
-        # print("BULLET BODY", hex(id(self.body)), self.body)
 
         # bullets are circles with diameter 1/2 the same as tile width (and tile height)
         assert level.tiles.tileheight == level.tiles.tilewidth
@@ -578,41 +576,37 @@ class Bullet:
 
     def initialize(self, damage=DEFAULT_DAMAGE):
         """
-        Call this from your subclass initialize
+        Call this from your subclass initialize()
         *after* you've set self.position and self.velocity.
         """
         self.damage = 100
         self.collided = False
 
         self.body.position = Vec2d(self.position)
+        level.space.reindex_shapes_for_body(self.body)
 
         self.light = Light(self.position)
         lighting.add_light(self.light)
-        # print(f"--initialize bullet! {self} initial position {self.position}")
+
         self.sprite = pyglet.sprite.Sprite(self.image, batch=level.bullet_batch, group=level.foreground_sprite_group)
         self.on_update(0)
-        level.space.reindex_shapes_for_body(self.body)
+        self.body.velocity = self.velocity
         level.space.add(self.body, self.shape)
 
     def on_update(self, dt):
         old = self.position
         self.position = Vec2d(self.body.position)
-        # print(f"--bullet update, from {old} to {self.position}")
+        self.light.position = self.position
+
         sprite_coord = level.map_to_world(self.position)
         # TODO no idea why this seems necessary
         sprite_coord -= Vec2d(64, 64)
-        self.sprite.set_position(*sprite_coord)
-        self.light.position = self.position
+        self.sprite.position = sprite_coord
 
     def on_update_velocity(self, body, gravity, damping, dt):
-        # print("BULLET BODY", hex(id(self.body)), self.body)
-        # print("PASSED IN BODY", hex(id(body)), body)
-        # print(f"--update bullet velocity {self}")
         self.body.velocity = self.velocity
-        pass
 
     def close(self):
-        # print(f"--closing bullet {self}")
         bullets.discard(self)
         level.space.remove(self.body, self.shape)
         self.sprite.delete()
@@ -638,10 +632,11 @@ class PlayerBullet(Bullet):
 
     def initialize(self, damage=DEFAULT_DAMAGE):
         reticle_vector = Vec2d(reticle.offset).normalized()
-        self.velocity = reticle_vector * self.speed
-        bullet_offset = reticle_vector * (player.radius + self.radius)
+        self.velocity = Vec2d(reticle_vector) * self.speed
+
+        bullet_offset = Vec2d(reticle_vector) * (player.radius + self.radius)
         self.position = Vec2d(player.position) + bullet_offset
-        self.body.position = Vec2d(self.position)
+
         super().initialize(damage)
 
     def on_collision_robot(self, shape):
@@ -670,6 +665,7 @@ class RobotBullet(Bullet):
 
         bullet_offset = vector_to_player * (robot.radius + self.radius)
         self.position = Vec2d(robot.position) + bullet_offset
+
         super().initialize(damage)
 
     def on_collision_player(self, shape):
@@ -681,7 +677,6 @@ class RobotBullet(Bullet):
 
 
 def new_player_bullet():
-    # return Bullet()
     if player_bullet_freelist:
         b = player_bullet_freelist.pop()
         b.initialize()
