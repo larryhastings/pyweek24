@@ -1009,7 +1009,7 @@ class Robot:
 
     def on_died(self):
         self.close()
-        fire(self.position)
+        Kaboom(level.map_to_world(self.position))
 
     def on_collision_wall(wall_shape):
         pass
@@ -1305,10 +1305,6 @@ default_system.add_global_controller(
 )
 
 MEAN_FIRE_INTERVAL = 3.0
-
-def fire(position):
-    Kaboom(position)
-    pyglet.clock.schedule_once(fire, expovariate(1.0 / (MEAN_FIRE_INTERVAL - 1)) + 1)
 
 
 pyglet.clock.schedule_interval(default_system.update, (1.0/30.0))
