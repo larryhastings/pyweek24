@@ -58,7 +58,9 @@ viewport = Viewport(*window.get_size())
 debug_viewport = Viewport(50, 50)
 
 
-player_light = Light((10, 10))
+PLAYER_GLOW = (0, 0.4, 0.5)
+PLAYER_FIRING = (1.0, 0.95, 0.7)
+player_light = Light((10, 10), PLAYER_GLOW)
 
 lighting = LightRenderer(viewport)
 lighting.add_light(player_light)
@@ -539,6 +541,9 @@ class Bullet:
         bullet_offset = Vec2d(player.radius + self.radius, 0)
         self.position = Vec2d(player.position) + bullet_offset
         self.body.position = self.position
+
+        self.light = Light(self.position)
+        lighting.add_light(self.light)
         # print(f"--initialize bullet! {self} initial position {self.position}")
         self.sprite = pyglet.sprite.Sprite(self.image, batch=level.bullet_batch, group=level.foreground_sprite_group)
         self.on_update(0)
@@ -553,6 +558,7 @@ class Bullet:
         # TODO no idea why this seems necessary
         sprite_coord -= Vec2d(64, 64)
         self.sprite.set_position(*sprite_coord)
+        self.light.pos = self.position
 
     def on_update_velocity(self, body, gravity, damping, dt):
         # print("BULLET BODY", hex(id(self.body)), self.body)
@@ -567,6 +573,7 @@ class Bullet:
         level.space.remove(self.body, self.shape)
         self.sprite.delete()
         self.sprite = None
+        lighting.remove_light(self.light)
         bullets_finishing_tick.append(self)
 
 def new_bullet():
@@ -578,6 +585,7 @@ def new_bullet():
         b = Bullet()
     bullets.add(b)
     return b
+
 
 def transform_pymunk_to_screen(position):
     return Vec2d(
