@@ -1,7 +1,7 @@
 from enum import IntEnum
 import io
 import math
-from math import floor
+from math import floor, atan2, degrees
 import os
 import pprint
 import random
@@ -162,6 +162,16 @@ class RobotSprite:
         x, y = v
         self.sprite.position = floor(x + 0.5), floor(y + 0.5)
 
+    @property
+    def angle(self):
+        """Angle of the sprite in radians."""
+        return math.radians(-self.sprite.rotation)
+
+    @angle.setter
+    def angle(self, v):
+        """Set the angle of the sprite."""
+        self.sprite.rotation = -math.degrees(v)
+
     def delete(self):
         # TODO
         # DAN FIX THIS OR SOMETHING
@@ -171,6 +181,11 @@ class RobotSprite:
 
 class PlayerRobotSprite(RobotSprite):
     """Player robot."""
+
+    MIN = 0
+    MAX = 3
+
+    ROW = 0
 
     def __init__(self, position, level=0):
         super().__init__(position, (0, 0))
@@ -182,13 +197,18 @@ class PlayerRobotSprite(RobotSprite):
 
     @level.setter
     def level(self, v):
-        if not (0 <= v < 4):
+        if not (self.MIN <= v <= self.MAX):
             raise ValueError(
-                f'{type(self).__name__}.level must be 0-3 (not {v})'
+                f'{type(self).__name__}.level must be '
+                f'{self.MIN}-{self.MAX} (not {v})'
             )
         self._level = v
-        self.sprite.image = self.sprites[0, self._level]
+        self.sprite.image = self.sprites[self._level, self.ROW]
 
+
+class EnemyRobotSprite(PlayerRobotSprite):
+    """Sprites for the enemies."""
+    ROW = 2
 
 
 
@@ -881,6 +901,7 @@ class Player:
         viewport.position = self.sprite.position
         player_light.position = self.body.position
         reticle.on_player_moved()
+        self.sprite.angle = self.body.velocity.angle
 
     def on_update_velocity(self, body, gravity, damping, dt):
         velocity = Vec2d(self.velocity)
@@ -950,6 +971,7 @@ class Reticle:
 robots = set()
 shape_to_robot = {}
 
+
 class Robot:
     # used only to calculate starting position of bullet
     radius = 0.7071067811865476
@@ -957,13 +979,13 @@ class Robot:
     shooting = False
     shoot_waiting = shoot_cooldown = 180
 
-    def __init__(self, position, sprite_position):
+    def __init__(self, position, evolution=0):
         self.position = Vec2d(position)
         self.velocity = Vec2d(0, 0)
 
         self.health = 100
 
-        self.sprite = RobotSprite(level.map_to_world(position), sprite_position)
+        self.sprite = EnemyRobotSprite(level.map_to_world(position), evolution)
 
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body.position = Vec2d(self.position)
@@ -991,6 +1013,7 @@ class Robot:
         self.position = Vec2d(self.body.position)
         sprite_coordinates = level.map_to_world(self.position)
         self.sprite.position = sprite_coordinates
+        self.sprite.angle = self.body.velocity.angle
 
         if not self.shooting:
             return
@@ -1020,8 +1043,8 @@ class WanderingRobot(Robot):
     shooting = True
     shoot_waiting = shoot_cooldown = 180
 
-    def __init__(self, position):
-        super().__init__(position, (0, 0))
+    def __init__(self, position, evolution=0):
+        super().__init__(position, evolution)
         self.countdown = 1
         # how many units per second
         self.speed = (1 + (random.random() * 2.5))
