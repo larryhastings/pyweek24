@@ -1194,6 +1194,7 @@ def on_mouse_release(x, y, button, modifiers):
 def on_draw():
     gl.glClearColor(0, 0, 0, 1.0)
     window.clear()
+    gl.glDisable(gl.GL_DEPTH_TEST)
     with viewport:
         gl.glClearColor(0xae / 0xff, 0x51 / 0xff, 0x39 / 0xff, 1.0)
         with lighting.illuminate():
@@ -1201,6 +1202,7 @@ def on_draw():
             RobotSprite.draw_diffuse()
         RobotSprite.draw_emit()
         level.bullet_batch.draw()
+
         default_system.draw()
     game.on_draw()
     # with debug_viewport:
@@ -1239,14 +1241,61 @@ from pyglet import image
 from pyglet.gl import *
 
 from lepton import Particle, ParticleGroup, default_system, domain
-from lepton.renderer import PointRenderer
+from lepton.renderer import PointRenderer, BillboardRenderer
 from lepton.texturizer import SpriteTexturizer, create_point_texture
 from lepton.emitter import StaticEmitter, PerParticleEmitter
-from lepton.controller import Gravity, Lifetime, Movement, Fader, ColorBlender
+from lepton.controller import Gravity, Lifetime, Movement, Fader, ColorBlender, Growth
 
 spark_tex = image.load(os.path.join(os.path.dirname(__file__), 'flare3.png')).get_texture()
 spark_texturizer = SpriteTexturizer(spark_tex.id)
 trail_texturizer = SpriteTexturizer(create_point_texture(8, 50))
+
+
+class Trail:
+    LIFETIME = 0.2
+
+    sprite = pyglet.resource.texture('trail.png')
+    group = ParticleGroup(
+        controllers=[
+            Lifetime(LIFETIME),
+            #Fader(start_alpha=1.0, fade_out_start=0, fade_out_end=LIFETIME),
+            Growth(-50),
+            Movement(),
+        ],
+        renderer=BillboardRenderer(
+            SpriteTexturizer(sprite.id)
+        )
+    )
+
+    def __init__(self):
+        self.emitter = StaticEmitter(
+            rate=player.body.velocity.length,
+            template=Particle(
+                position=(*level.map_to_world(player.position), 0),
+                color=(1.0, 1.0, 1.0, 1.0),
+                size=(16.0,) * 3,
+            ),
+        )
+        self.group.bind_controller(self.emitter)
+        pyglet.clock.schedule(self.update)
+
+    def __del__(self):
+        self.group.unbind_controller(self.emitter)
+
+    def update(self, *_):
+        dir = player.body.velocity
+        l = dir.length
+        self.emitter.rate = l * 2
+
+        if l:
+            back = player.position - dir.normalized() * 0.1
+            backwards = -0.1 * dir
+            self.emitter.template.position = (*level.map_to_world(back), 0)
+            self.emitter.template.velocity = (*level.map_to_world(backwards), 0)
+            self.emitter.template.up = (0, 0, dir.get_angle())
+
+
+player_trail = Trail()
 
 
 class Kaboom:
@@ -1327,8 +1376,8 @@ yrot = 0.0
 
 
 glEnable(GL_BLEND)
-glShadeModel(GL_SMOOTH)
 glBlendFunc(GL_SRC_ALPHA,GL_ONE)
+glShadeModel(GL_SMOOTH)
 glHint(GL_PERSPECTIVE_CORRECTION_HINT,GL_NICEST);
 glDisable(GL_DEPTH_TEST)
 
