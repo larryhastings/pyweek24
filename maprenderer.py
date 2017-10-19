@@ -15,19 +15,19 @@ class Viewport:
     def __init__(self, w, h):
         self.w = w
         self.h = h
-        self.pos = (0, 0)
+        self.position = (0, 0)
 
     def bounds(self):
         """Return screen bounds as a tuple (l, r, b, t)."""
         w2 = self.w // 2
         h2 = self.h // 2
-        x, y = self.pos
+        x, y = self.position
         return x - w2, x + w2, y - h2, y + h2
 
     def __enter__(self):
         gl.glPushMatrix()
         gl.glLoadIdentity()
-        x, y = self.pos
+        x, y = self.position
         gl.glTranslatef(self.w // 2 - int(x), self.h // 2 - int(y), 0)
 
     def __exit__(self, *_):
@@ -146,8 +146,8 @@ class Light:
     attenuation = 200
     exponent = 2
 
-    def __init__(self, pos=(0, 0), color=(1.0, 1.0, 1.0)):
-        self.pos = pos
+    def __init__(self, position=(0, 0), color=(1.0, 1.0, 1.0)):
+        self.position = position
         self.color = color
 
 
@@ -218,7 +218,7 @@ class LightRenderer:
 
     def render_light(self, light):
         volumes = []
-        x, y = light.pos
+        x, y = light.position
 
         l = x - 6
         r = x + 6

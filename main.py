@@ -1,10 +1,11 @@
 from enum import IntEnum
 import io
 import math
+from math import floor
 import os
 import pprint
+import random
 import sys
-from math import floor
 
 # built from source, removed "inline" from Group_kill_p in */group.h
 import lepton
@@ -90,13 +91,13 @@ class CollisionType(IntEnum):
     WALL = 1
     PLAYER = 2
     PLAYER_BULLET = 4
-    MONSTER = 8
-    MONSTER_BULLET = 16
+    ROBOT = 8
+    ROBOT_BULLET = 16
 
 
 
-class Robot:
-    """Base class for a robot.
+class RobotSprite:
+    """Base class for a robot sprite.
 
     There is some Pyglet magic here that is intended to allow the same
     sprites to be re-rendered with different textures in different phases
@@ -106,8 +107,6 @@ class Robot:
     """
 
     ROWS = COLS = 8
-
-    SPRITE_NUM = 0
 
     @classmethod
     def load(cls):
@@ -147,31 +146,34 @@ class Robot:
             group.texture = cls.emit_tex
             cls.batch.draw()
 
-    def __init__(self, pos):
+    def __init__(self, position, sprite_position):
         self.sprite = pyglet.sprite.Sprite(
-            self.sprites[self.SPRITE_POS],
+            self.sprites[tuple(sprite_position)],
             batch=self.batch
         )
-        self.pos = pos
+        self.position = position
 
     @property
-    def pos(self):
+    def position(self):
         return self.sprite.position
 
-    @pos.setter
-    def pos(self, v):
+    @position.setter
+    def position(self, v):
         x, y = v
         self.sprite.position = floor(x + 0.5), floor(y + 0.5)
 
+    def delete(self):
+        # TODO
+        # DAN FIX THIS OR SOMETHING
+        self.sprite.position = (1000000, 1000000)
 
 
-class PlayerRobot(Robot):
+
+class PlayerRobotSprite(RobotSprite):
     """Player robot."""
 
-    SPRITE_POS = 0, 0
-
-    def __init__(self, pos, level=0):
-        super().__init__(pos)
+    def __init__(self, position, level=0):
+        super().__init__(position, (0, 0))
         self.level = level
 
     @property
@@ -186,6 +188,8 @@ class PlayerRobot(Robot):
             )
         self._level = v
         self.sprite.image = self.sprites[0, self._level]
+
+
 
 
 class Game:
@@ -426,11 +430,20 @@ class Level:
         self.space = pymunk.Space()
         self.draw_options = pymunk.pyglet_util.DrawOptions()
         self.space.gravity = (0, 0)
+
         self.player_collision_filter = pymunk.ShapeFilter(group=CollisionType.PLAYER | CollisionType.PLAYER_BULLET)
-        ch = self.space.add_collision_handler(int(CollisionType.PLAYER_BULLET), int(CollisionType.WALL))
-        ch.pre_solve = on_bullet_hit_wall
-        # ch = self.space.add_collision_handler(int(CollisionType.PLAYER), int(CollisionType.WALL))
-        # ch.pre_solve = on_player_hit_wall
+        self.robot_collision_filter = pymunk.ShapeFilter(group=CollisionType.ROBOT | CollisionType.ROBOT_BULLET)
+
+        for (type1, type2, fn) in (
+            (CollisionType.PLAYER_BULLET, CollisionType.WALL,   on_player_bullet_hit_wall),
+            (CollisionType.PLAYER_BULLET, CollisionType.ROBOT,  on_player_bullet_hit_robot),
+            (CollisionType.ROBOT_BULLET,  CollisionType.WALL,   on_robot_bullet_hit_wall),
+            (CollisionType.ROBOT_BULLET,  CollisionType.PLAYER, on_robot_bullet_hit_player),
+
+            (CollisionType.ROBOT,         CollisionType.WALL,   on_robot_hit_wall),
+            ):
+            ch = self.space.add_collision_handler(int(type1), int(type2))
+            ch.pre_solve = fn
 
         for blob in blobs:
             (r0x, r0y), (r0end_x, r0end_y) = blob[0]
@@ -506,15 +519,25 @@ class Level:
         return gid in self.collision_gids
 
 
-bullet_freelist = []
-bullets_finishing_tick = []
+player_bullet_freelist = []
+robot_bullet_freelist = []
+# these are lists of bullets that died during this tick.
+# we don't stick them immediately into the freelist,
+# because they might still be churning around inside pymunk.
+# so we add them to the end of freelist at the end of the tick.
+player_bullets_finishing_tick = []
+robot_bullets_finishing_tick = []
 shape_to_bullet = {}
 
 bullet_flare = pyglet.image.load("flare3.png")
 
+
+DEFAULT_DAMAGE = 100
+
 class Bullet:
     offset = Vec2d(0.0, 0.0)
-    def __init__(self):
+
+    def __init__(self, *args):
         # print()
         # print("--")
         # print("-- bullet __init__")
@@ -522,25 +545,26 @@ class Bullet:
 
         # self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
-        self.speed = Vec2d(1, 0) * 40
         self.body.velocity_func = self.on_update_velocity
         # print("BULLET BODY", hex(id(self.body)), self.body)
 
-        # makebullet a circle with diameter 1/2 the same as tile width (and tile height)
+        # bullets are circles with diameter 1/2 the same as tile width (and tile height)
         assert level.tiles.tileheight == level.tiles.tilewidth
         self.radius = player.radius / 3
         self.shape = pymunk.Circle(self.body, radius=self.radius, offset=self.offset)
-        self.shape.collision_type = CollisionType.PLAYER_BULLET
-        self.shape.filter = level.player_collision_filter
         shape_to_bullet[self.shape] = self
 
-        self.initialize()
+        self.initialize(*args)
 
-    def initialize(self):
+    def initialize(self, damage=DEFAULT_DAMAGE):
+        """
+        Call this from your subclass initialize
+        *after* you've set self.position and self.velocity.
+        """
+        self.damage = 100
         self.collided = False
-        bullet_offset = Vec2d(player.radius + self.radius, 0)
-        self.position = Vec2d(player.position) + bullet_offset
-        self.body.position = self.position
+
+        self.body.position = Vec2d(self.position)
 
         self.light = Light(self.position)
         lighting.add_light(self.light)
@@ -558,13 +582,13 @@ class Bullet:
         # TODO no idea why this seems necessary
         sprite_coord -= Vec2d(64, 64)
         self.sprite.set_position(*sprite_coord)
-        self.light.pos = self.position
+        self.light.position = self.position
 
     def on_update_velocity(self, body, gravity, damping, dt):
         # print("BULLET BODY", hex(id(self.body)), self.body)
         # print("PASSED IN BODY", hex(id(body)), body)
         # print(f"--update bullet velocity {self}")
-        self.body.velocity = self.speed
+        self.body.velocity = self.velocity
         pass
 
     def close(self):
@@ -574,31 +598,93 @@ class Bullet:
         self.sprite.delete()
         self.sprite = None
         lighting.remove_light(self.light)
-        bullets_finishing_tick.append(self)
 
-def new_bullet():
+    def on_collision_wall(self, shape):
+        pass
+
+    def on_collision_player(self, shape):
+        pass
+
+    def on_collision_robot(self, shape):
+        pass
+
+
+class PlayerBullet(Bullet):
+    def __init__(self, damage=DEFAULT_DAMAGE):
+        self.speed = 40
+        super().__init__(damage)
+        self.shape.collision_type = CollisionType.PLAYER_BULLET
+        self.shape.filter = level.player_collision_filter
+
+    def initialize(self, damage=DEFAULT_DAMAGE):
+        reticle_vector = Vec2d(reticle.offset).normalized()
+        self.velocity = reticle_vector * self.speed
+        bullet_offset = reticle_vector * (player.radius + self.radius)
+        self.position = Vec2d(player.position) + bullet_offset
+        self.body.position = Vec2d(self.position)
+        super().initialize(damage)
+
+    def on_collision_robot(self, shape):
+        robot = shape_to_robot.get(shape)
+        if robot:
+            robot.on_damage(self.damage)
+
+    def close(self):
+        super().close()
+        player_bullets_finishing_tick.append(self)
+
+
+class RobotBullet(Bullet):
+    def __init__(self, robot, damage=DEFAULT_DAMAGE):
+        self.speed = 20
+        super().__init__(robot, damage)
+        self.shape.collision_type = CollisionType.ROBOT_BULLET
+        self.shape.filter = level.robot_collision_filter
+
+    def initialize(self, robot, damage=DEFAULT_DAMAGE):
+        self.robot = robot
+        vector_to_player = Vec2d(player.position) - robot.position
+        vector_to_player = vector_to_player.normalized()
+
+        self.velocity = vector_to_player * self.speed
+
+        bullet_offset = vector_to_player * (robot.radius + self.radius)
+        self.position = Vec2d(robot.position) + bullet_offset
+        super().initialize(damage)
+
+    def on_collision_player(self, shape):
+        player.on_damage(self.damage)
+
+    def close(self):
+        super().close()
+        robot_bullets_finishing_tick.append(self)
+
+
+def new_player_bullet():
     # return Bullet()
-    if bullet_freelist:
-        b = bullet_freelist.pop()
+    if player_bullet_freelist:
+        b = player_bullet_freelist.pop()
         b.initialize()
     else:
-        b = Bullet()
+        b = PlayerBullet()
+    bullets.add(b)
+    return b
+
+def new_robot_bullet(robot):
+    if robot_bullet_freelist:
+        b = robot_bullet_freelist.pop()
+        b.initialize(robot)
+    else:
+        b = RobotBullet(robot)
     bullets.add(b)
     return b
 
 
-def transform_pymunk_to_screen(position):
-    return Vec2d(
-        position.x,
-        window.height - position.y
-        )
-
-
 bullets = set()
 
-def on_bullet_hit_wall(arbiter, space, data):
+def bullet_collision(entity, arbiter):
     bullet_shape = arbiter.shapes[0]
-    wall_shape = arbiter.shapes[1]
+    entity_shape = arbiter.shapes[1]
     bullet = shape_to_bullet.get(bullet_shape)
 
     # only handle the first collision for a bullet
@@ -607,6 +693,11 @@ def on_bullet_hit_wall(arbiter, space, data):
     if bullet.collided:
         return False
     bullet.collided = True
+
+    attr_name = "on_collision_" + entity
+    callback = getattr(bullet, attr_name, None)
+    if callback:
+        callback(entity_shape)
 
     # print("--collision--")
     # print(f"  player position {player.position}")
@@ -617,6 +708,28 @@ def on_bullet_hit_wall(arbiter, space, data):
     if bullet and bullet in bullets:
         bullet.close()
     return False
+
+
+def on_robot_hit_wall(arbiter, space, data):
+    robot_shape = arbiter.shapes[0]
+    wall_shape = arbiter.shapes[1]
+    robot = shape_to_robot.get(robot_shape)
+    if robot:
+        robot.on_collision_wall(wall_shape)
+    return True
+
+def on_player_bullet_hit_wall(arbiter, space, data):
+    return bullet_collision("wall", arbiter)
+
+def on_robot_bullet_hit_wall(arbiter, space, data):
+    return bullet_collision("wall", arbiter)
+
+def on_player_bullet_hit_robot(arbiter, space, data):
+    return bullet_collision("robot", arbiter)
+
+def on_robot_bullet_hit_player(arbiter, space, data):
+    return bullet_collision("player", arbiter)
+
 
 # def on_player_hit_wall(arbiter, space, data):
 #     print("PLAYER HIT WALL", player.body.position)
@@ -637,15 +750,18 @@ class Player:
         # TODO why is this what we wanted?!
         self.position = self.position + Vec2d(0, level.tiles.tileheight)
 
-        # acceleration we add to speed every frame
+        self.velocity = Vec2d(vector_zero)
+
+        # acceleration is a vector we add to velocity every frame
         self.acceleration = Vec2d(vector_zero)
-        # this is literally the self.acceleration as a unit vector
-        self.desired_speed = Vec2d(vector_zero)
-        # actual current speed
-        self.speed = Vec2d(vector_zero)
-        self.speed_multiplier = 150
-        self.speed = Vec2d(vector_zero)
-        self.acceleration_frames = 30 # 30/120 of a second to get to full speed
+        # this vector has the same theta as acceleration
+        # but its length is how fast we eventually want to move
+        self.desired_velocity = Vec2d(vector_zero)
+        # this is the multiple against a unit vector to determine our top speed
+        self.top_speed = 15
+        # how many 1/120th of a second frames should it take to get to full speed
+        self.acceleration_frames = 30
+
         self.pause_pressed_keys = []
         self.pause_released_keys = []
         self.movement_keys = []
@@ -667,7 +783,9 @@ class Player:
         self.shoot_cooldown = 10
         self.shoot_waiting = 1
 
-        self.sprite = PlayerRobot(level.map_to_world(*self.position))
+        self.health = 1000
+
+        self.sprite = PlayerRobotSprite(level.map_to_world(self.position))
 
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body.position = Vec2d(self.position)
@@ -683,8 +801,8 @@ class Player:
         level.space.add(self.body, self.shape)
 
     def calculate_speed(self):
-        if self.speed != self.desired_speed:
-            self.speed = vector_clamp(self.speed + self.acceleration, self.desired_speed)
+        if self.velocity != self.desired_velocity:
+            self.velocity = vector_clamp(self.velocity + self.acceleration, self.desired_velocity)
 
     def calculate_acceleration(self):
         new_acceleration = Vec2d(0, 0)
@@ -697,12 +815,10 @@ class Player:
             handled.add(key)
             handled.add(self.movement_opposites[key])
 
-        desired_speed = new_acceleration.normalized() * self.speed_multiplier
+        desired_velocity = new_acceleration.normalized() * self.top_speed
 
-        self.desired_speed = desired_speed
-        self.acceleration = desired_speed / self.acceleration_frames
-
-        # self.body.apply_force_at_local_point(self.desired_speed, Vec2d(0, 0))
+        self.desired_velocity = desired_velocity
+        self.acceleration = desired_velocity / self.acceleration_frames
 
     def on_pause_change(self):
         if game.paused:
@@ -758,15 +874,16 @@ class Player:
             self.calculate_acceleration()
         return pyglet.event.EVENT_HANDLED
 
-    def on_player_move(self):
+    def on_player_moved(self):
         self.position = self.body.position
         sprite_coordinates = level.map_to_world(self.position)
-        self.sprite.pos = sprite_coordinates
-        viewport.pos = self.sprite.pos
-        player_light.pos = self.body.position
+        self.sprite.position = sprite_coordinates
+        viewport.position = self.sprite.position
+        player_light.position = self.body.position
+        reticle.on_player_moved()
 
     def on_update_velocity(self, body, gravity, damping, dt):
-        velocity = Vec2d(self.speed) * 0.1
+        velocity = Vec2d(self.velocity)
         body.velocity = velocity
         self.body.velocity = velocity
 
@@ -775,36 +892,159 @@ class Player:
         # actually use dt here
         # instead of assuming it's 1/60 of a second
         self.calculate_speed()
-        self.shoot_waiting -= 1
-        if self.shoot_waiting <= 0:
+        if self.shoot_waiting:
+            self.shoot_waiting -= 1
+        if self.shooting and self.shoot_waiting <= 0:
             self.shoot_waiting = self.shoot_cooldown
-            b = new_bullet()
+            b = new_player_bullet()
 
     def on_draw(self):
         self.sprite.draw()
+
+    def on_damage(self, damage):
+        self.health -= damage
+        if self.health <= 0:
+            self.on_died()
+
+    def on_died(self):
+        game.paused = True
 
 
 class Reticle:
     def __init__(self):
         self.image = pyglet.image.load("gfx/reticle.png")
+        self.image.anchor_x = self.image.anchor_y = self.image.width // 2
         self.sprite = pyglet.sprite.Sprite(self.image, batch=level.bullet_batch, group=level.foreground_sprite_group)
         self.position = Vec2d(0, 0)
-        self.acceleration = 0
+        # how many pixels movement onscreen map to one revolution
+        self.acceleration = 3000
+        self.mouse_multiplier = -(math.pi * 2) / self.acceleration
         # in radians
         self.theta = 0
         # in pymunk coordinates
         self.magnitude = 3
+        self.offset = Vec2d(self.magnitude, 0)
 
-        self.mouse_position = None
 
-    def on_mouse_moved(self, x, y):
-        if self.mouse_position == None:
-            self.mouse_position = x
-        delta = x - self.mouse_position
-        self.theta += delta * self.acceleration
+    def on_mouse_motion(self, x, y, dx, dy):
+        if dx:
+            self.theta += dx * self.mouse_multiplier
+            self.offset = Vec2d(self.magnitude, 0)
+            self.offset.rotate(self.theta)
+            player.sprite.rotation = self.theta
+            self.on_player_moved()
+
+    def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+        return self.on_mouse_motion(x, y, dx, dy)
 
     def on_player_moved(self):
-        self.position = Vec2d(player.position) + 0
+        self.position = Vec2d(player.position) + self.offset
+        sprite_coordinates = level.map_to_world(self.position)
+        self.sprite.set_position(*sprite_coordinates)
+
+    def on_draw(self):
+        pass
+        # self.sprite.draw()
+
+
+robots = set()
+shape_to_robot = {}
+
+class Robot:
+    # used only to calculate starting position of bullet
+    radius = 0.7071067811865476
+
+    shooting = False
+    shoot_waiting = shoot_cooldown = 180
+
+    def __init__(self, position, sprite_position):
+        self.position = Vec2d(position)
+        self.velocity = Vec2d(0, 0)
+
+        self.health = 100
+
+        self.sprite = RobotSprite(level.map_to_world(position), sprite_position)
+
+        self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
+        self.body.position = Vec2d(self.position)
+        self.body.velocity_func = self.on_update_velocity
+
+        # robots are square!
+        self.shape = pymunk.Poly.create_box(self.body, (1, 1))
+        self.shape.collision_type = CollisionType.ROBOT
+        self.shape.filter = level.robot_collision_filter
+        shape_to_robot[self.shape] = self
+        level.space.add(self.body, self.shape)
+        robots.add(self)
+
+    def on_update_velocity(self, body, gravity, damping, dt):
+        velocity = Vec2d(self.velocity)
+        body.velocity = velocity
+        self.body.velocity = velocity
+
+    def on_damage(self, damage):
+        self.health -= damage
+        if self.health <= 0:
+            self.on_died()
+
+    def on_update(self, dt):
+        self.position = Vec2d(self.body.position)
+        sprite_coordinates = level.map_to_world(self.position)
+        self.sprite.position = sprite_coordinates
+
+        if not self.shooting:
+            return
+        if self.shoot_waiting:
+            self.shoot_waiting -= 1
+        if self.shooting and self.shoot_waiting <= 0:
+            self.shoot_waiting = self.shoot_cooldown
+            b = new_robot_bullet(self)
+
+    def close(self):
+        robots.discard(self)
+        level.space.remove(self.body, self.shape)
+        self.sprite.delete()
+        self.sprite = None
+
+
+    def on_died(self):
+        self.close()
+        fire(self.position)
+
+    def on_collision_wall(wall_shape):
+        pass
+
+
+class WanderingRobot(Robot):
+
+    shooting = True
+    shoot_waiting = shoot_cooldown = 180
+
+    def __init__(self, position):
+        super().__init__(position, (0, 0))
+        self.countdown = 1
+        # how many units per second
+        self.speed = (1 + (random.random() * 2.5))
+        robots.add(self)
+
+    def pick_new_vector(self):
+        # how many 1/120 tics shoudl we move in this direction
+        self.countdown = random.randint(60, 240)
+        self.theta = random.random() * (2 * math.pi)
+        self.velocity = Vec2d(self.speed, 0)
+        self.velocity.rotate(self.theta)
+        # print("wandering robot velocity is now", self.velocity)
+
+    def on_collision_wall(self, wall_shape):
+        # print("Wandering robot hit wall, picking new vector")
+        # print("  ", end="")
+        self.pick_new_vector()
+
+    def on_update(self, dt):
+        super().on_update(dt)
+        self.countdown -= 1
+        if self.countdown <= 0:
+            self.pick_new_vector()
 
 
 
@@ -812,11 +1052,14 @@ game = Game()
 # level = Level("prototype")
 level = Level("level1")
 
-Robot.load()
+RobotSprite.load()
+
+reticle = Reticle()
 
 player = Player()
-player.on_player_move()
+player.on_player_moved()
 
+robot = WanderingRobot(player.position + Vec2d(5, -5))
 
 keypress_handlers = {}
 def keypress(key):
@@ -896,12 +1139,25 @@ def on_key_release(symbol, modifiers):
         return EVENT_HANDLED
 
 @window.event
+def on_mouse_motion(x, y, dx, dy):
+    reticle.on_mouse_motion(x, y, dx, dy)
+
+@window.event
+def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
+    reticle.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
+
+
+LEFT_MOUSE_BUTTON = pyglet.window.mouse.LEFT
+
+@window.event
 def on_mouse_press(x, y, button, modifiers):
-    player.shooting = True
+    if button == LEFT_MOUSE_BUTTON:
+        player.shooting = True
 
 @window.event
 def on_mouse_release(x, y, button, modifiers):
-    player.shooting = False
+    if button == LEFT_MOUSE_BUTTON:
+        player.shooting = False
 
 
 @window.event
@@ -910,8 +1166,8 @@ def on_draw():
     with viewport:
         with lighting.illuminate():
             level.on_draw()
-            Robot.draw_diffuse()
-        Robot.draw_emit()
+            RobotSprite.draw_diffuse()
+        RobotSprite.draw_emit()
         level.bullet_batch.draw()
         default_system.draw()
     game.on_draw()
@@ -928,14 +1184,18 @@ def on_update(dt):
     level.space.step(dt)
     # print()
     # print("PLAYER", player.body.position)
-    player.on_player_move()
+    player.on_player_moved()
+    for robot in robots:
+        robot.on_update(dt)
     for bullet in bullets:
-        # print("BULLET", id(bullet), bullet.body.position)
         bullet.on_update(dt)
     # print()
-    if bullets_finishing_tick:
-        bullet_freelist.extend(bullets_finishing_tick)
-        bullets_finishing_tick.clear()
+    if player_bullets_finishing_tick:
+        player_bullet_freelist.extend(player_bullets_finishing_tick)
+        player_bullets_finishing_tick.clear()
+    if robot_bullets_finishing_tick:
+        robot_bullet_freelist.extend(robot_bullets_finishing_tick)
+        robot_bullets_finishing_tick.clear()
 
 pyglet.clock.schedule_interval(on_update, 1/120.0)
 
@@ -960,12 +1220,12 @@ trail_texturizer = SpriteTexturizer(create_point_texture(8, 50))
 class Kaboom:
     lifetime = 5
 
-    def __init__(self, pos):
+    def __init__(self, position):
         color=(uniform(0,1), uniform(0,1), uniform(0,1), 1)
         while max(color[:3]) < 0.9:
             color=(uniform(0,1), uniform(0,1), uniform(0,1), 1)
 
-        x, y = pos
+        x, y = position
 
         spark_emitter = StaticEmitter(
             template=Particle(
@@ -1046,13 +1306,11 @@ default_system.add_global_controller(
 
 MEAN_FIRE_INTERVAL = 3.0
 
-def fire(dt=None):
-    x, y = player.position
-    Kaboom((x, y))
+def fire(position):
+    Kaboom(position)
     pyglet.clock.schedule_once(fire, expovariate(1.0 / (MEAN_FIRE_INTERVAL - 1)) + 1)
 
 
-fire()
 pyglet.clock.schedule_interval(default_system.update, (1.0/30.0))
 pyglet.clock.set_fps_limit(None)
 
