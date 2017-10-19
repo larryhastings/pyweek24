@@ -835,6 +835,7 @@ class Player:
             handled.add(self.movement_opposites[key])
 
         desired_velocity = new_acceleration.normalized() * self.top_speed
+        desired_velocity.rotate(reticle.theta)
 
         self.desired_velocity = desired_velocity
         self.acceleration = desired_velocity / self.acceleration_frames
@@ -953,6 +954,7 @@ class Reticle:
             self.offset = Vec2d(self.magnitude, 0)
             self.offset.rotate(self.theta)
             player.sprite.rotation = self.theta
+            player.calculate_acceleration()
             self.on_player_moved()
 
     def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
