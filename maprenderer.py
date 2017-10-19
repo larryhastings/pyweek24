@@ -200,10 +200,10 @@ class LightRenderer:
 
     def render(self):
         """Render all lights."""
-        lighting_shader.bind()
         gl.glEnable(gl.GL_TEXTURE_2D)
         gl.glActiveTexture(gl.GL_TEXTURE0)
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.fbo.textures[0])
+        lighting_shader.bind()
         lighting_shader.uniformi('diffuse_tex', 0)
         lighting_shader.uniformf('viewport', *self.viewport.bounds())
         gl.glEnable(gl.GL_BLEND)
@@ -211,9 +211,11 @@ class LightRenderer:
         for light in self.lights:
             self.render_light(light)
         lighting_shader.unbind()
+
+        # Draw ambient using a full-creen quad
         gl.glColor3f(*self.ambient)
         self.vl.draw(gl.GL_QUADS)
-        gl.glColor3f(1, 1, 1)
+        gl.glColor4f(1, 1, 1, 1)
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 
     def render_light(self, light):
