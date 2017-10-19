@@ -776,6 +776,29 @@ class Player:
         self.sprite.draw()
 
 
+class Reticle:
+    def __init__(self):
+        self.image = pyglet.image.load("gfx/reticle.png")
+        self.sprite = pyglet.sprite.Sprite(self.image, batch=level.bullet_batch, group=level.foreground_sprite_group)
+        self.position = Vec2d(0, 0)
+        self.acceleration = 0
+        # in radians
+        self.theta = 0
+        # in pymunk coordinates
+        self.magnitude = 3
+
+        self.mouse_position = None
+
+    def on_mouse_moved(self, x, y):
+        if self.mouse_position == None:
+            self.mouse_position = x
+        delta = x - self.mouse_position
+        self.theta += delta * self.acceleration
+
+    def on_player_moved(self):
+        self.position = Vec2d(player.position) + 0
+
+
 
 game = Game()
 # level = Level("prototype")
