@@ -29,9 +29,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.4142136"
-     inkscape:cx="-15.665136"
-     inkscape:cy="55.795562"
+     inkscape:zoom="4"
+     inkscape:cx="33.708273"
+     inkscape:cy="206.50654"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="true"
@@ -66,8 +66,7 @@
      inkscape:groupmode="layer"
      id="layer1"
      transform="translate(0,-796.36216)"
-     style="display:inline"
-     sodipodi:insensitive="true">
+     style="display:inline">
     <path
        style="color:#000000;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;opacity:1;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;fill:#808080;fill-opacity:1;fill-rule:nonzero;stroke:#6a6a6a;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate"
        d="m 39.779558,798.39685 18.912012,0 0,6.71752 -18.912012,0 c -3.989764,0 -4.326498,-6.71752 0,-6.71752 z"
@@ -136,7 +135,7 @@
        sodipodi:nodetypes="cccc" />
     <g
        id="g4920"
-       transform="matrix(0.69408539,0,0,0.69408539,8.4840053,248.51346)">
+       transform="matrix(0.69408539,0,0,0.69408539,8.4840053,192.51346)">
       <circle
          style="color:#000000;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;opacity:1;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;fill:#65a9ff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate"
          id="circle4889"
@@ -183,23 +182,6 @@
        sodipodi:start="1.8333155"
        sodipodi:end="4.4338304"
        d="M 76.317302,826.16868 A 14.608521,14.301864 0 0 1 65.50037,812.47151 14.608521,14.301864 0 0 1 76.091515,798.60624 l 4.016906,13.75057 z" />
-    <g
-       transform="matrix(0.69408539,0,0,0.69408539,-6.1000732,191.59137)"
-       id="g5000">
-      <circle
-         r="6.0675602"
-         cy="812.36218"
-         cx="10.686292"
-         id="circle5002"
-         style="color:#000000;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;opacity:1;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;fill:#65a9ff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate" />
-      <ellipse
-         style="color:#000000;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;opacity:1;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate"
-         id="ellipse5004"
-         cx="14.936292"
-         cy="812.36218"
-         rx="1.8175602"
-         ry="2.6925602" />
-    </g>
     <path
        d="m 89.286671,817.7091 a 6.0083237,5.5266843 0 0 1 -4.448885,-5.29301 6.0083237,5.5266843 0 0 1 4.356022,-5.35797 l 1.652109,5.31365 z"
        sodipodi:end="4.4338304"
@@ -423,15 +405,14 @@
      inkscape:groupmode="layer"
      id="layer2"
      inkscape:label="Emit"
-     style="display:inline"
-     sodipodi:insensitive="true">
+     style="display:inline">
     <use
        style="display:inline"
        x="0"
        y="0"
        xlink:href="#g4920"
        id="use4962"
-       transform="translate(0.12499965,-796.61216)"
+       transform="translate(0.12499965,-740.61216)"
        width="100%"
        height="100%" />
     <use
@@ -440,7 +421,7 @@
        xlink:href="#g4920"
        y="0"
        x="0"
-       transform="translate(32.173359,-796.36216)"
+       transform="translate(32.173359,-740.36216)"
        width="100%"
        height="100%" />
     <use
@@ -449,14 +430,14 @@
        xlink:href="#g4920"
        y="0"
        x="0"
-       transform="translate(56.833707,-796.36216)"
+       transform="translate(56.833707,-740.36216)"
        width="100%"
        height="100%" />
     <use
        style="display:inline"
        height="100%"
        width="100%"
-       transform="translate(93.161318,-796.36216)"
+       transform="translate(93.161318,-740.36216)"
        x="0"
        y="0"
        xlink:href="#g4920"

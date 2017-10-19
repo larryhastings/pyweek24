@@ -18,12 +18,25 @@ class Viewport:
         self.position = (0, 0)
         self.angle = 0
 
+        self.vl = pyglet.graphics.vertex_list(4,
+            ('v2f/static', (0, 0, 1, 0, 1, 1, 0, 1)),
+            ('t2f/static', (0, 0, 1, 0, 1, 1, 0, 1))
+        )
+
     def bounds(self):
         """Return screen bounds as a tuple (l, r, b, t)."""
         w2 = self.w // 2
         h2 = self.h // 2
         x, y = self.position
         return x - w2, x + w2, y - h2, y + h2
+
+    def draw_quad(self):
+        """Draw a full-screen quad."""
+        gl.glPushMatrix()
+        gl.glLoadIdentity()
+        gl.glScalef(self.w, self.h, 1.0)
+        self.vl.draw(gl.GL_QUADS)
+        gl.glPopMatrix()
 
     def __enter__(self):
         gl.glPushMatrix()
@@ -102,7 +115,9 @@ class MapRenderer:
                 self.sprites[x, y] = sprite
 
     def render(self):
+        gl.glDisable(gl.GL_BLEND)
         self.batch.draw()
+        gl.glEnable(gl.GL_BLEND)
 
 
 lighting_shader = Shader(
@@ -169,11 +184,6 @@ class LightRenderer:
         self.fbo = None
         self.ambient = ambient
 
-        self.vl = pyglet.graphics.vertex_list(4,
-            ('v2f/stream', (0, 0, 1, 0, 1, 1, 0, 1)),
-            ('t2f/static', (0, 0, 1, 0, 1, 1, 0, 1))
-        )
-
     def add_light(self, light):
         """Add a light to the renderer."""
         self.lights.add(light)
@@ -221,13 +231,8 @@ class LightRenderer:
         lighting_shader.unbind()
 
         # Draw ambient using a full-screen quad
-        gl.glPushMatrix()
-        gl.glLoadIdentity()
-        gl.glScalef(self.viewport.w, self.viewport.h, 1.0)
         gl.glColor3f(*self.ambient)
-        self.vl.draw(gl.GL_QUADS)
-        gl.glPopMatrix()
-
+        self.viewport.draw_quad()
         gl.glColor4f(1, 1, 1, 1)
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 

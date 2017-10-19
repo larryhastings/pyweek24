@@ -16,7 +16,10 @@
    id="svg5346"
    version="1.1"
    inkscape:version="0.91 r13725"
-   sodipodi:docname="trail_particle.svg">
+   sodipodi:docname="trail_particle.svg"
+   inkscape:export-filename="/home/mauve/dev/pyweek24/gfx/trail.png"
+   inkscape:export-xdpi="90"
+   inkscape:export-ydpi="90">
   <defs
      id="defs5348">
     <linearGradient
@@ -55,7 +58,7 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="16.559375"
-     inkscape:cx="19.567413"
+     inkscape:cx="18.269055"
      inkscape:cy="0.84720492"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"

@@ -1286,7 +1286,7 @@ class Trail:
             backwards = -0.1 * dir
             self.emitter.template.position = (*level.map_to_world(back), 0)
             self.emitter.template.velocity = (*level.map_to_world(backwards), 0)
-            self.emitter.template.up = (0, 0, dir.get_angle())
+            self.emitter.template.up = (0, 0, dir.get_angle() - viewport.angle)
 
 
 player_trail = Trail()
