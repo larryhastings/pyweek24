@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+
+# system includes
 from enum import IntEnum
 import io
 import math
@@ -10,13 +13,15 @@ import sys
 # built from source, removed "inline" from Group_kill_p in */group.h
 import lepton
 
+from maprenderer import MapRenderer, Viewport, LightRenderer, Light
+
 # pip3.6 install pyglet
 import pyglet.resource
 import pyglet.window.key
 from pyglet import gl
 
 # pip3.6 install pymunk
-# GAAH
+# GAAH, prevent pymunk from printing to stdout on import
 tmp = sys.stdout
 sys.stdout = io.StringIO()
 import pymunk
@@ -24,26 +29,14 @@ sys.stdout = tmp
 del tmp
 import pymunk.pyglet_util
 
-# Vec2D: 2D vector, mutable
-# a = b
-# a += (5, 2)
-# assert a == b # True
+# Vec2D: 2D vector, mutable (sigh)
 from pymunk import Vec2d
 vector_zero = Vec2d.zero()
 vector_unit_x = Vec2d(1, 0)
 vector_unit_y = Vec2d(0, 1)
 
-
 # pip3.6 install tmx
 import tmx
-
-# pip3.6 install wasabi.geom
-# from wasabi.geom.vector import Vector, v
-# from wasabi.geom.vector import zero as vector_zero
-# from wasabi.geom.vector import unit_x as vector_unit_x
-# from wasabi.geom.vector import unit_y as vector_unit_y
-
-from maprenderer import MapRenderer, Viewport, LightRenderer, Light
 
 
 key = pyglet.window.key
