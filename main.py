@@ -4,6 +4,7 @@ import math
 import os
 import pprint
 import sys
+from math import floor
 
 # built from source, removed "inline" from Group_kill_p in */group.h
 import lepton
@@ -11,6 +12,7 @@ import lepton
 # pip3.6 install pyglet
 import pyglet.resource
 import pyglet.window.key
+from pyglet import gl
 
 # pip3.6 install pymunk
 # GAAH
@@ -88,6 +90,99 @@ class CollisionType(IntEnum):
     MONSTER = 8
     MONSTER_BULLET = 16
 
+
+
+class Robot:
+    """Base class for a robot.
+
+    There is some Pyglet magic here that is intended to allow the same
+    sprites to be re-rendered with different textures in different phases
+    of the draw pipeline. This allows robots to have lights that are not
+    shadowed.
+
+    """
+
+    ROWS = COLS = 8
+
+    SPRITE_NUM = 0
+
+    @classmethod
+    def load(cls):
+        cls.batch = pyglet.graphics.Batch()
+        cls.diffuse_tex = pyglet.resource.texture('robots_diffuse.png')
+        cls.emit_tex = pyglet.resource.texture('robots_emit.png')
+
+        cls.flip_tex = pyglet.image.Texture(
+            cls.diffuse_tex.width,
+            cls.diffuse_tex.height,
+            gl.GL_TEXTURE_2D,
+            cls.diffuse_tex.id
+        )
+        cls.grid = pyglet.image.ImageGrid(
+            image=cls.flip_tex,
+            rows=cls.ROWS,
+            columns=cls.COLS,
+        )
+        cls.sprites = {}
+        for i, img in enumerate(cls.grid.get_texture_sequence()):
+            y, x = divmod(i, cls.COLS)
+            y = cls.ROWS - y - 1
+            img.anchor_x = img.anchor_y = img.width // 2
+            cls.sprites[x, y] = img
+
+    @classmethod
+    def draw_diffuse(cls):
+        group = next(iter(cls.batch.top_groups), None)
+        if group:
+            group.texture = cls.diffuse_tex
+            cls.batch.draw()
+
+    @classmethod
+    def draw_emit(cls):
+        group = next(iter(cls.batch.top_groups), None)
+        if group:
+            group.texture = cls.emit_tex
+            cls.batch.draw()
+
+    def __init__(self, pos):
+        self.sprite = pyglet.sprite.Sprite(
+            self.sprites[self.SPRITE_POS],
+            batch=self.batch
+        )
+        self.pos = pos
+
+    @property
+    def pos(self):
+        return self.sprite.position
+
+    @pos.setter
+    def pos(self, v):
+        x, y = v
+        self.sprite.position = floor(x + 0.5), floor(y + 0.5)
+
+
+
+class PlayerRobot(Robot):
+    """Player robot."""
+
+    SPRITE_POS = 0, 0
+
+    def __init__(self, pos, level=0):
+        super().__init__(pos)
+        self.level = level
+
+    @property
+    def level(self):
+        return self._level
+
+    @level.setter
+    def level(self, v):
+        if not (0 <= v < 4):
+            raise ValueError(
+                f'{type(self).__name__}.level must be 0-3 (not {v})'
+            )
+        self._level = v
+        self.sprite.image = self.sprites[0, self._level]
 
 
 class Game:
@@ -544,17 +639,16 @@ class Player:
         self.shoot_cooldown = 60
         self.shoot_waiting = 1
 
-        self.image = pyglet.image.load("player.png")
-        # player should be a circle, so its image should be square
-        assert self.image.height == self.image.width
-        self.image.anchor_x = self.image.anchor_y = self.image.width // 2
-        self.sprite = pyglet.sprite.Sprite(self.image)
+        self.sprite = PlayerRobot(level.map_to_world(*self.position))
 
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body.position = Vec2d(self.position)
         self.body.velocity_func = self.on_update_velocity
 
-        player_shape_radius = level.world_to_map(self.image.width // 2, self.image.height // 2)
+        player_shape_radius = level.world_to_map(
+            self.sprite.sprite.width // 2,
+            self.sprite.sprite.height // 2
+        )
         # player_shape_radius = Vec2d(0.5, 0.5)
         self.shape = pymunk.Circle(self.body, player_shape_radius.x)
         self.shape.collision_type = CollisionType.PLAYER
@@ -640,8 +734,8 @@ class Player:
 
     def on_player_move(self):
         self.position = level.map_to_world(*self.body.position)
-        self.sprite.set_position(*self.position)
-        viewport.pos = self.sprite.position
+        self.sprite.pos = self.position
+        viewport.pos = self.sprite.pos
         player_light.pos = self.body.position
 
     def on_update_velocity(self, body, gravity, damping, dt):
@@ -668,6 +762,7 @@ game = Game()
 # level = Level("prototype")
 level = Level("level1")
 
+Robot.load()
 
 player = Player()
 player.on_player_move()
@@ -756,8 +851,9 @@ def on_draw():
     with viewport:
         with lighting.illuminate():
             level.on_draw()
+            Robot.draw_diffuse()
             game.on_draw()
-        player.on_draw()
+        Robot.draw_emit()
         default_system.draw()
     # with debug_viewport:
     #     glScalef(8.0, 8.0, 8.0)
@@ -888,7 +984,7 @@ default_system.add_global_controller(
 MEAN_FIRE_INTERVAL = 3.0
 
 def fire(dt=None):
-    x, y = player.sprite.position
+    x, y = player.position
     Kaboom((x, y))
     pyglet.clock.schedule_once(fire, expovariate(1.0 / (MEAN_FIRE_INTERVAL - 1)) + 1)
 
