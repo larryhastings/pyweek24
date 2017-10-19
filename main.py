@@ -942,10 +942,10 @@ class Reticle:
         self.magnitude = 3
         self.offset = Vec2d(self.magnitude, 0)
 
-
     def on_mouse_motion(self, x, y, dx, dy):
         if dx:
             self.theta += dx * self.mouse_multiplier
+            viewport.angle = self.theta
             self.offset = Vec2d(self.magnitude, 0)
             self.offset.rotate(self.theta)
             player.sprite.rotation = self.theta
