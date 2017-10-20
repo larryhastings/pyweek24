@@ -232,7 +232,7 @@ class Level:
     def __init__(self, basename):
         self.load(basename)
 
-        self.collision_tiles, self.player_position_tiles = (layer.tiles for layer in self.tiles.layers)
+        self.collision_tiles = self.tiles.layers[0].tiles
         self.upper_left = Vec2d(vector_zero)
         self.lower_right = Vec2d(
             self.tiles.width,
@@ -970,13 +970,7 @@ class Player:
         self.bullet_speed = 40
         # determine position based on first nonzero tile
         # found in player starting position layer
-        for i, tile in enumerate(level.player_position_tiles):
-            if tile.gid:
-                # print("FOUND PLAYER TILE AT", i, level.tile_index_to_position(i))
-                self.position = level.tile_index_to_position(i)
-                break
-        else:
-            self.position = Vec2d(vector_zero)
+        self.position = Vec2d(vector_zero)
         # adjust player position
         # TODO why is this what we wanted?!
         self.position = self.position + Vec2d(0, level.tiles.tileheight)
@@ -1492,7 +1486,7 @@ class Ray:
 
 game = Game()
 # level = Level("prototype")
-level = Level("level1")
+level = Level("new_mars")
 
 RobotSprite.load()
 

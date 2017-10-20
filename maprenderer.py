@@ -3,6 +3,7 @@ from math import degrees
 import pyglet.graphics
 import pyglet.sprite
 from pyglet import gl
+import tmx
 
 from json_map import get_texture_sequence
 from lighting import Light
@@ -102,20 +103,34 @@ class MapRenderer:
                 lighty = props['lighty']
                 self.light_tiles[gid] = lightx, lighty
 
+        tile_layers = [l for l in tmxfile.layers if isinstance(l, tmx.Layer)]
         self.sprites = {}
-        for layernum, layer in enumerate(tmxfile.layers):
+
+        tile_map = bytearray()
+        verts = []
+        tcs = []
+        epsilon = 1
+        for layernum, layer in enumerate(tile_layers):
             for i, tile in enumerate(layer.tiles):
                 if tile.gid == 0 or tile.gid not in self.tiles:
                     continue
                 y, x = divmod(i, self.width)
                 y = self.height - y - 1
-                sprite = pyglet.sprite.Sprite(
-                    self.tiles[tile.gid],
-                    x=x * self.tilew,
-                    y=y * self.tileh,
-                    batch=self.batch,
-                    usage="static"
+
+                tex = self.tiles[tile.gid]
+
+                l = x * self.tilew - epsilon
+                t = y * self.tileh - epsilon
+                r = l + self.tilew + epsilon
+                b = t + self.tileh + epsilon
+
+                #verts.extend([l, b, l, t, r, t, r, b])
+                verts.extend([l, t, r, t, r, b, l, b, ])
+                # verts.extend([l, b, r, b, r, t, l, t])
+                tcs.extend(
+                    c for i, c in enumerate(tex.tex_coords) if i % 3 != 2
                 )
+
                 gid = tile.gid
                 if gid in self.collision_tiles:
                     wall = self.collision_tiles[gid]
@@ -127,9 +142,32 @@ class MapRenderer:
                     self.light_objects.append(
                         Light((lx + x, ly + y))
                     )
-                self.sprites[x, y] = sprite
+
+#        self.group = pyglet.sprite.SpriteGroup(
+#            self.tiles_tex.get_texture(),
+#            gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA
+#            #gl.GL_ONE, gl.GL_ZERO
+#        )
+        self.group = pyglet.graphics.Group()
+        self.vl = self.batch.add(
+            len(verts) // 2,
+            gl.GL_QUADS,
+            self.group,
+            ('v2i/static', verts),
+            ('t2f/static', tcs),
+        )
 
     def render(self):
+        gl.glDisable(gl.GL_DEPTH_TEST)
         gl.glDisable(gl.GL_BLEND)
+        gl.glEnable(gl.GL_TEXTURE_2D)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.tiles_tex.get_texture().id)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR_MIPMAP_NEAREST)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+        gl.glGenerateMipmap(gl.GL_TEXTURE_2D);
+
         self.batch.draw()
-        gl.glEnable(gl.GL_BLEND)
+        gl.glEnable(gl.GL_DEPTH_TEST)
+
