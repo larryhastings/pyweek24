@@ -201,7 +201,7 @@ class PlayerRobotSprite(RobotSprite):
                 f'{self.MIN}-{self.MAX} (not {v})'
             )
         self._level = v
-        self.sprite.image = self.sprites[self._level, self.ROW]
+        self.sprite.image = self.sprites[self._level, self.ROW + (v + 1) % 2]
 
 
 class EnemyRobotSprite(PlayerRobotSprite):
