@@ -210,6 +210,9 @@ class EnemyRobotSprite(PlayerRobotSprite):
 
 class Game:
     def __init__(self):
+        self.score = 0
+        self.lives = 5
+
         self.paused = False
 
         self.pause_label = pyglet.text.Label('[Pause]',
@@ -449,6 +452,8 @@ class Level:
 
         # filter only lets through things that cares about
         # e.g. "player collision filter" masks out things the player shouldn't collide with
+        self.wall_only_collision_filter = pymunk.ShapeFilter(mask=CollisionType.WALL)
+
         self.player_collision_filter = pymunk.ShapeFilter(
             group=CollisionType.PLAYER,
             mask=pymunk.ShapeFilter.ALL_MASKS ^ (CollisionType.PLAYER | CollisionType.PLAYER_BULLET))
@@ -557,24 +562,93 @@ robot_bullet_freelist = []
 # we don't stick them immediately into the freelist,
 # because they might still be churning around inside pymunk.
 # so we add them to the end of freelist at the end of the tick.
-player_bullets_finishing_tick = []
-robot_bullets_finishing_tick = []
+player_finishing_tick = []
+robot_finishing_tick = []
 
 shape_to_bullet = {}
 
 bullet_flare = pyglet.image.load("flare3.png")
 
 
-DEFAULT_DAMAGE = 100
+class BulletColor(IntEnum):
+    BULLET_COLOR_INVALID = 0
+    BULLET_COLOR_WHITE = 1
+    BULLET_COLOR_RED = 2
 
-class Bullet:
+class BulletShape(IntEnum):
+    BULLET_SHAPE_INVALID = 0
+    BULLET_SHAPE_NORMAL = 1
+    BULLET_SHAPE_TINY = 2
+
+
+PLAYER_BASE_DAMAGE = 100
+
+
+
+BulletClasses = []
+def add_to_bullet_classes(cls):
+    BulletClasses.append(cls)
+    return cls
+
+class BulletBase:
     offset = Vec2d(0.0, 0.0)
 
-    def __init__(self, *args):
-        self.image = bullet_flare
+    finishing_tick = None
+    freelist = None
 
+    def __init__(self):
+        pass
+
+    @classmethod
+    def fire(cls, shooter, vector, modifier):
+        if cls.freelist:
+            b = cls.freelist.pop()
+        else:
+            b = cls()
+        bullets.add(b)
+        b._fire(shooter, vector, modifier)
+        return b
+
+    def _fire(self, shooter, velocity, modifier):
+        self.shooter = shooter
+        self.damage = int(PLAYER_BASE_DAMAGE * modifier.damage_multiplier)
+        self.cooldown = int(random.randrange(*shooter.cooldown_range) * modifier.cooldown_multiplier)
+
+        self.collided = False
+
+    def close(self):
+        bullets.discard(self)
+        self.__class__.finishing_tick.append(self)
+
+    def on_collision_wall(self, shape):
+        pass
+
+    # we rely on collision filters to prevent
+    # the wrong kind of collision from happening
+
+    def on_collision_player(self, shape):
+        assert self.shooter != player
+        player.on_damage(self.damage)
+
+    def on_collision_robot(self, shape):
+        assert self.shooter is player
+        robot = shape_to_robot.get(shape)
+        if robot:
+            robot.on_damage(self.damage)
+
+    def on_draw(self):
+        pass
+
+
+@add_to_bullet_classes
+class Bullet(BulletBase):
+    finishing_tick = []
+    freelist = []
+
+    def __init__(self):
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body.velocity_func = self.on_update_velocity
+        self.image = bullet_flare
 
         # bullets are circles with diameter 1/2 the same as tile width (and tile height)
         assert level.tiles.tileheight == level.tiles.tilewidth
@@ -582,18 +656,23 @@ class Bullet:
         self.shape = pymunk.Circle(self.body, radius=self.radius, offset=self.offset)
         shape_to_bullet[self.shape] = self
 
-        self.initialize(*args)
 
-    def initialize(self, damage=DEFAULT_DAMAGE):
-        """
-        Call this from your subclass initialize()
-        *after* you've set self.position and self.velocity.
-        """
-        self.damage = 100
-        self.collided = False
+    def _fire(self, shooter, vector, modifier):
+        super()._fire(shooter, vector, modifier)
+
+        # HANDLE SHAPE
+        # HANDLE COLOR
+
+        vector = Vec2d(vector).normalized()
+        self.velocity = Vec2d(vector) * shooter.bullet_speed * modifier.speed
+
+        bullet_offset = Vec2d(vector) * (shooter.radius + self.radius)
+        self.position = Vec2d(shooter.position) + bullet_offset
 
         self.body.position = Vec2d(self.position)
         level.space.reindex_shapes_for_body(self.body)
+        self.shape.collision_type = shooter.bullet_collision_type
+        self.shape.filter = shooter.bullet_collision_filter
 
         self.light = Light(self.position)
         lighting.add_light(self.light)
@@ -602,6 +681,13 @@ class Bullet:
         self.on_update(0)
         self.body.velocity = self.velocity
         level.space.add(self.body, self.shape)
+
+    def close(self):
+        super().close()
+        level.space.remove(self.body, self.shape)
+        self.sprite.delete()
+        self.sprite = None
+        lighting.remove_light(self.light)
 
     def on_update(self, dt):
         old = self.position
@@ -616,56 +702,89 @@ class Bullet:
     def on_update_velocity(self, body, gravity, damping, dt):
         self.body.velocity = self.velocity
 
-    def close(self):
-        bullets.discard(self)
-        level.space.remove(self.body, self.shape)
-        self.sprite.delete()
-        self.sprite = None
-        lighting.remove_light(self.light)
 
-    def on_collision_wall(self, shape):
-        pass
-
-    def on_collision_player(self, shape):
-        pass
-
-    def on_collision_robot(self, shape):
-        pass
+@add_to_bullet_classes
+class BossKillerBullet(Bullet):
+    finishing_tick = []
+    freelist = []
 
 
-class PlayerBullet(Bullet):
-    def __init__(self, damage=DEFAULT_DAMAGE):
-        self.speed = 40
-        super().__init__(damage)
-        self.shape.collision_type = CollisionType.PLAYER_BULLET
-        self.shape.filter = level.player_bullet_collision_filter
+@add_to_bullet_classes
+class RailgunBullet(BulletBase):
+    finishing_tick = []
+    freelist = []
 
-    def initialize(self, damage=DEFAULT_DAMAGE):
-        reticle_vector = Vec2d(reticle.offset).normalized()
-        self.velocity = Vec2d(reticle_vector) * self.speed
+    radius = 0.1
 
-        bullet_offset = Vec2d(reticle_vector) * (player.radius + self.radius)
-        self.position = Vec2d(player.position) + bullet_offset
+    def _fire(self, shooter, vector, modifier):
+        super()._fire(shooter, vector, modifier)
 
-        super().initialize(damage)
+        print("railgun FIRE! pew!")
+        vector = Vec2d(vector).normalized()
 
-    def on_collision_robot(self, shape):
-        robot = shape_to_robot.get(shape)
-        if robot:
-            robot.on_damage(self.damage)
+        long_enough_vector = vector * 150
+        railgun_test_endpoint = shooter.position + long_enough_vector
 
-    def close(self):
-        super().close()
-        player_bullets_finishing_tick.append(self)
+        wall_hit = level.space.segment_query_first(shooter.position, railgun_test_endpoint,
+            self.radius, level.wall_only_collision_filter)
+
+        collisions = level.space.segment_query(shooter.position, wall_hit.point,
+            self.radius, level.player_bullet_collision_filter)
+
+        # simulate collisions
+        for collision in collisions:
+            if collision.shape == wall_hit.shape:
+                continue
+            # TODO
+            # robots can't fire railguns yet
+            assert shooter is player
+            robot = shape_to_robot.get(collision.shape)
+            if robot:
+                robot.on_damage(self.damage)
+
+        # we're done here!
+        # at least, until we start displaying graphical effects
+        self.close()
 
 
-class RobotBullet(Bullet):
-    def __init__(self, robot, damage=DEFAULT_DAMAGE):
-        self.speed = 20
-        super().__init__(robot, damage)
-        self.shape.collision_type = CollisionType.ROBOT_BULLET
-        self.shape.filter = level.robot_bullet_collision_filter
 
+
+class Weapon:
+    def __init__(self, name,
+            damage_multiplier=1,
+            cooldown_multiplier=1,
+            speed=1,
+            color=BulletColor.BULLET_COLOR_WHITE,
+            shape=BulletShape.BULLET_SHAPE_NORMAL,
+            cls=Bullet):
+        self.name = name
+        self.damage_multiplier = damage_multiplier
+        self.cooldown_multiplier = cooldown_multiplier
+        self.speed = speed
+        self.color = color
+        self.shape = shape
+        self.cls = cls
+
+    def __repr__(self):
+        s = f'<Weapon "{self.name}"'
+        for attr, default in (
+            ("damage_multiplier", 1),
+            ("cooldown_multiplier",1),
+            ("speed",1),
+            ("color",BulletColor.BULLET_COLOR_WHITE),
+            ("shape",BulletShape.BULLET_SHAPE_NORMAL),
+            ("cls",Bullet),
+            ):
+            value = getattr(self, attr)
+            if value != default:
+                s += f" {attr}={value}"
+        s += ">"
+        return s
+
+    def fire(self, shooter, vector):
+        return self.cls.fire(shooter, vector, self)
+
+"""
     def initialize(self, robot, damage=DEFAULT_DAMAGE):
         self.robot = robot
         vector_to_player = Vec2d(player.position) - robot.position
@@ -678,12 +797,9 @@ class RobotBullet(Bullet):
 
         super().initialize(damage)
 
-    def on_collision_player(self, shape):
-        player.on_damage(self.damage)
-
     def close(self):
         super().close()
-        robot_bullets_finishing_tick.append(self)
+        robot_finishing_tick.append(self)
 
 
 def new_player_bullet():
@@ -703,6 +819,17 @@ def new_robot_bullet(robot):
         b = RobotBullet(robot)
     bullets.add(b)
     return b
+"""
+
+
+def on_robot_hit_wall(arbiter, space, data):
+    robot_shape = arbiter.shapes[0]
+    wall_shape = arbiter.shapes[1]
+    robot = shape_to_robot.get(robot_shape)
+    if robot:
+        robot.on_collision_wall(wall_shape)
+    return True
+
 
 
 bullets = set()
@@ -728,15 +855,6 @@ def bullet_collision(entity, arbiter):
         bullet.close()
     return False
 
-
-def on_robot_hit_wall(arbiter, space, data):
-    robot_shape = arbiter.shapes[0]
-    wall_shape = arbiter.shapes[1]
-    robot = shape_to_robot.get(robot_shape)
-    if robot:
-        robot.on_collision_wall(wall_shape)
-    return True
-
 def on_player_bullet_hit_wall(arbiter, space, data):
     return bullet_collision("wall", arbiter)
 
@@ -754,8 +872,74 @@ def on_robot_bullet_hit_player(arbiter, space, data):
 #     print("PLAYER HIT WALL", player.body.position)
 #     return True
 
+
+
+class Powerup(IntEnum):
+        TWO_SHOT = 1
+        DAMAGE_BOOST = 2
+        BOUNCE = 4
+        RAILGUN = 8
+
+# each powerup gives you approximately 1.4x more power
+# but you also give something up
+bullet_modifiers = [
+    Weapon("two-shot",
+        damage_multiplier=0.4,
+        cooldown_multiplier=0.6,
+        speed=1.3,
+        shape=BulletShape.BULLET_SHAPE_TINY),
+    Weapon("damage boost",
+        damage_multiplier=1.6,
+        cooldown_multiplier=3,
+        speed=0.7,
+        color=BulletColor.BULLET_COLOR_RED),
+    Weapon("bounce",
+        damage_multiplier=0.8,
+        cooldown_multiplier=1.5),
+    Weapon("railgun",
+        damage_multiplier=1.2,
+        cooldown_multiplier=1.2,
+        cls=RailgunBullet),
+    ]
+
+weapon_matrix = []
+
+for i in range(16):
+    if i == 0:
+        weapon = Weapon("normal")
+    elif i == 15:
+        weapon = Weapon("boss killer",
+            damage_multiplier=20,
+            cooldown_multiplier=5,
+            cls=BossKillerBullet)
+    else:
+        weapon = Weapon("")
+        names = []
+        for bit, delta in enumerate(bullet_modifiers):
+            if i & (1<<bit):
+                names.append(delta.name)
+                weapon.damage_multiplier *= delta.damage_multiplier
+                weapon.cooldown_multiplier *= delta.cooldown_multiplier
+                if delta.cls != Bullet:
+                    weapon.cls = delta.cls
+        assert names, f"names empty for i {i}"
+        if len(names) == 1:
+            weapon.name = names[0]
+        elif len(names) == 2:
+            weapon.name = f"{names[0]} and {names[1]}"
+        else:
+            weapon.name = ", ".join(names[:-1]) + ", and " + names[-1]
+
+    weapon_matrix.append(weapon)
+
+
 class Player:
+
     def __init__(self):
+        self.cooldown_range = (10, 12)
+        self.bullet_collision_filter = level.player_bullet_collision_filter
+        self.bullet_collision_type = CollisionType.PLAYER_BULLET
+        self.bullet_speed = 40
         # determine position based on first nonzero tile
         # found in player starting position layer
         for i, tile in enumerate(level.player_position_tiles):
@@ -799,8 +983,8 @@ class Player:
             }
 
         self.shooting = False
-        self.shoot_cooldown = 10
-        self.shoot_waiting = 1
+        self.cooldown = 0
+        self.weapon_index = 0
 
         self.health = 1000
 
@@ -818,6 +1002,18 @@ class Player:
         self.shape.filter = level.player_collision_filter
         self.shape.elasticity = 0.0
         level.space.add(self.body, self.shape)
+
+    def toggle_weapon(self, bit):
+        i = 1 << (bit - 1)
+        if self.weapon_index & i:
+            index = self.weapon_index & ~i
+        else:
+            index = self.weapon_index | i
+        # print(f"weapon changed from {self.weapon_index} to {index}")
+        # print(weapon_matrix[index])
+        # print()
+        self.weapon_index = index
+
 
     def calculate_speed(self):
         if self.velocity != self.desired_velocity:
@@ -912,11 +1108,12 @@ class Player:
         # actually use dt here
         # instead of assuming it's 1/60 of a second
         self.calculate_speed()
-        if self.shoot_waiting:
-            self.shoot_waiting -= 1
-        if self.shooting and self.shoot_waiting <= 0:
-            self.shoot_waiting = self.shoot_cooldown
-            b = new_player_bullet()
+        if self.cooldown > 0:
+            self.cooldown -= 1
+        elif self.shooting:
+            modifier = weapon_matrix[self.weapon_index]
+            bullet = modifier.fire(self, reticle.offset)
+            self.cooldown = bullet.cooldown
 
         self.sprite.angle = reticle.theta
 
@@ -982,7 +1179,7 @@ shape_to_robot = {}
 
 
 
-class Behaviour: # Dan, you're welcome, you don't know how much I want to omit the 'u'
+class RobotBehaviour: # Dan, you're welcome, you don't know how much I want to omit the 'u'
     def __init__(self, robot):
         self.robot = robot
         # automatically add our overloaded callback
@@ -995,7 +1192,7 @@ class Behaviour: # Dan, you're welcome, you don't know how much I want to omit t
             "on_update",
             ):
             class_method = getattr(self.__class__, callback_name)
-            base_class_method = getattr(Behaviour, callback_name)
+            base_class_method = getattr(RobotBehaviour, callback_name)
             if class_method != base_class_method:
                 callbacks = getattr(robot, callback_name + "_callbacks")
                 callbacks.append(getattr(self, callback_name))
@@ -1012,25 +1209,35 @@ class Behaviour: # Dan, you're welcome, you don't know how much I want to omit t
     def on_died(self):
         pass
 
+robot_base_weapon = Weapon("robot base weapon",
+    damage_multiplier=1,
+    cooldown_multiplier=1,
+    speed=1,
+    color=BulletColor.BULLET_COLOR_WHITE,
+    shape=BulletShape.BULLET_SHAPE_NORMAL,
+    cls=Bullet)
 
-class ShootConstantly(Behaviour):
-    shoot_waiting = shoot_cooldown = 180
+
+class RobotShootConstantly(RobotBehaviour):
+    cooldown = 0
 
     def on_update(self, dt):
-        if self.shoot_waiting > 0:
-            self.shoot_waiting -= 1
+        if self.cooldown > 0:
+            self.cooldown -= 1
             return
 
-        self.shoot_waiting = self.shoot_cooldown
-        b = new_robot_bullet(self.robot)
+        vector_to_player = Vec2d(player.position) - robot.position
+        bullet = robot_base_weapon.fire(self.robot, vector_to_player)
+        self.cooldown = bullet.cooldown
 
 
-class ShootOnlyWhenPlayerIsVisible(Behaviour):
-    shoot_waiting = shoot_cooldown = 180
+
+class RobotShootsOnlyWhenPlayerIsVisible(RobotBehaviour):
+    cooldown = 0
 
     def on_update(self, dt):
-        if self.shoot_waiting > 0:
-            self.shoot_waiting -= 1
+        if self.cooldown > 0:
+            self.cooldown -= 1
             return
 
         collision = level.space.segment_query_first(self.robot.position,
@@ -1038,11 +1245,12 @@ class ShootOnlyWhenPlayerIsVisible(Behaviour):
             player.radius / 3, # TODO this shouldn't be hard-coded
             level.robot_bullet_collision_filter)
         if collision and collision.shape == player.shape:
-            self.shoot_waiting = self.shoot_cooldown
-            b = new_robot_bullet(self.robot)
+            vector_to_player = Vec2d(player.position) - robot.position
+            bullet = robot_base_weapon.fire(self.robot, vector_to_player)
+            self.cooldown = bullet.cooldown
 
 
-class MoveRandomly(Behaviour):
+class RobotMovesRandomly(RobotBehaviour):
     countdown = 0
     def __init__(self, robot):
         super().__init__(robot)
@@ -1068,10 +1276,13 @@ class MoveRandomly(Behaviour):
 
 
 class Robot:
-    # used only to calculate starting position of bullet
-    radius = 0.7071067811865476
-
     def __init__(self, position, evolution=0):
+        # used only to calculate starting position of bullet
+        self.radius = 0.7071067811865476
+        self.bullet_collision_filter = level.robot_bullet_collision_filter
+        self.bullet_collision_type = CollisionType.ROBOT_BULLET
+        self.bullet_speed = 15
+
         self.position = Vec2d(position)
         self.velocity = Vec2d(0, 0)
 
@@ -1081,6 +1292,8 @@ class Robot:
         self.on_died_callbacks = []
 
         self.health = 100
+        self.cooldown_range = (180, 240)
+        self.cooldown = 0
 
         self.sprite = EnemyRobotSprite(level.map_to_world(position), evolution)
 
@@ -1153,11 +1366,10 @@ reticle = Reticle()
 player = Player()
 player.on_player_moved()
 
-# robot = WanderingRobot(player.position + Vec2d(5, -5))
 robot = Robot(player.position + Vec2d(5, -5))
-# ShootConstantly(robot)
-ShootOnlyWhenPlayerIsVisible(robot)
-MoveRandomly(robot)
+# RobotShootsConstantly(robot)
+RobotShootsOnlyWhenPlayerIsVisible(robot)
+RobotMovesRandomly(robot)
 
 keypress_handlers = {}
 def keypress(key):
@@ -1180,21 +1392,42 @@ def key_escape(pressed):
         window.set_exclusive_mouse(not game.paused)
         player.on_pause_change()
 
-@keypress(key.UP)
-def key_up(pressed):
-    print("UP", pressed)
+# @keypress(key.UP)
+# def key_up(pressed):
+#     print("UP", pressed)
 
-@keypress(key.DOWN)
-def key_down(pressed):
-    print("DOWN", pressed)
+# @keypress(key.DOWN)
+# def key_down(pressed):
+#     print("DOWN", pressed)
 
-@keypress(key.LEFT)
-def key_left(pressed):
-    print("LEFT", pressed)
+# @keypress(key.LEFT)
+# def key_left(pressed):
+#     print("LEFT", pressed)
 
-@keypress(key.RIGHT)
-def key_right(pressed):
-    print("RIGHT", pressed)
+# @keypress(key.RIGHT)
+# def key_right(pressed):
+#     print("RIGHT", pressed)
+
+@keypress(key._1)
+def key_1(pressed):
+    if pressed:
+        player.toggle_weapon(1)
+
+@keypress(key._2)
+def key_2(pressed):
+    if pressed:
+        player.toggle_weapon(2)
+
+@keypress(key._3)
+def key_3(pressed):
+    if pressed:
+        player.toggle_weapon(3)
+
+@keypress(key._4)
+def key_4(pressed):
+    if pressed:
+        player.toggle_weapon(4)
+
 
 
 @keypress(key.LCTRL)
@@ -1292,12 +1525,10 @@ def on_update(dt):
     for bullet in bullets:
         bullet.on_update(dt)
     # print()
-    if player_bullets_finishing_tick:
-        player_bullet_freelist.extend(player_bullets_finishing_tick)
-        player_bullets_finishing_tick.clear()
-    if robot_bullets_finishing_tick:
-        robot_bullet_freelist.extend(robot_bullets_finishing_tick)
-        robot_bullets_finishing_tick.clear()
+    for cls in BulletClasses:
+        if cls.finishing_tick:
+            cls.freelist.extend(cls.finishing_tick)
+            cls.finishing_tick.clear()
 
 pyglet.clock.schedule_interval(on_update, 1/120.0)
 
