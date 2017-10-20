@@ -41,7 +41,7 @@ import tmx
 
 #
 
-from particles import Trail, Kaboom
+from particles import Trail, Kaboom, Smoke, diffuse_system
 from maprenderer import MapRenderer, Viewport
 from lighting import LightRenderer, Light
 
@@ -111,15 +111,15 @@ class RobotSprite:
     batch = pyglet.graphics.Batch()
     diffuse_tex = pyglet.resource.texture('robots_diffuse.png')
     emit_tex = pyglet.resource.texture('robots_emit.png')
+    flip_tex = pyglet.image.Texture(
+        diffuse_tex.width,
+        diffuse_tex.height,
+        gl.GL_TEXTURE_2D,
+        diffuse_tex.id
+    )
 
     @classmethod
     def load(cls):
-        cls.flip_tex = pyglet.image.Texture(
-            cls.diffuse_tex.width,
-            cls.diffuse_tex.height,
-            gl.GL_TEXTURE_2D,
-            cls.diffuse_tex.id
-        )
         cls.grid = pyglet.image.ImageGrid(
             image=cls.flip_tex,
             rows=cls.ROWS,
@@ -134,10 +134,7 @@ class RobotSprite:
 
     @classmethod
     def draw_diffuse(cls):
-        group = next(iter(cls.batch.top_groups), None)
-        if group:
-            group.texture = cls.diffuse_tex
-            cls.batch.draw()
+        cls.batch.draw()
 
     @classmethod
     def draw_emit(cls):
@@ -145,6 +142,7 @@ class RobotSprite:
         if group:
             group.texture = cls.emit_tex
             cls.batch.draw()
+            group.texture = cls.diffuse_tex
 
     def __init__(self, position, sprite_position):
         self.sprite = pyglet.sprite.Sprite(
@@ -704,7 +702,6 @@ class Bullet(BulletBase):
         self.shape = pymunk.Circle(self.body, radius=self.radius, offset=self.offset)
         shape_to_bullet[self.shape] = self
 
-
     def _fire(self, shooter, vector, modifier):
         super()._fire(shooter, vector, modifier)
 
@@ -722,24 +719,21 @@ class Bullet(BulletBase):
         self.shape.collision_type = shooter.bullet_collision_type
         self.shape.filter = shooter.bullet_collision_filter
 
-        self.light = Light(self.position)
-        lighting.add_light(self.light)
-
-        self.sprite = pyglet.sprite.Sprite(self.image, batch=level.bullet_batch, group=level.foreground_sprite_group)
-        self.on_update(0)
         self.body.velocity = self.velocity
         level.space.add(self.body, self.shape)
+        self.create_visuals()
+        self.on_update(0)
 
-    def close(self):
-        super().close()
-        level.space.remove(self.body, self.shape)
-        self.sprite.delete()
-        self.sprite = None
-        lighting.remove_light(self.light)
+    def create_visuals(self):
+        self.light = Light(self.position)
+        lighting.add_light(self.light)
+        self.sprite = pyglet.sprite.Sprite(
+            self.image,
+            batch=level.bullet_batch,
+            group=level.foreground_sprite_group
+        )
 
-    def on_update(self, dt):
-        old = self.position
-        self.position = Vec2d(self.body.position)
+    def update_visuals(self):
         self.light.position = self.position
 
         sprite_coord = level.map_to_world(self.position)
@@ -747,8 +741,48 @@ class Bullet(BulletBase):
         sprite_coord -= Vec2d(64, 64)
         self.sprite.position = sprite_coord
 
+    def destroy_visuals(self):
+        self.sprite.delete()
+        self.sprite = None
+        lighting.remove_light(self.light)
+
+    def close(self):
+        super().close()
+        level.space.remove(self.body, self.shape)
+        self.destroy_visuals()
+
+    def on_update(self, dt):
+        old = self.position
+        self.position = Vec2d(self.body.position)
+        self.update_visuals()
+
     def on_update_velocity(self, body, gravity, damping, dt):
         self.body.velocity = self.velocity
+
+
+@add_to_bullet_classes
+class Rocket(Bullet):
+    finishing_tick = []
+    freelist = []
+
+    SPRITE = (6, 1)
+
+    def create_visuals(self):
+        sprite_coord = level.map_to_world(self.position)
+        self.rocket = RobotSprite(sprite_coord, self.SPRITE)
+        self.smoke = Smoke(sprite_coord)
+        self.rocket.angle = self.velocity.get_angle()
+
+    def update_visuals(self):
+        sprite_coord = level.map_to_world(self.position)
+        self.rocket.position = sprite_coord
+        self.smoke.set_world_position(sprite_coord, self.velocity)
+        self.rocket.angle = self.velocity.get_angle()
+
+    def destroy_visuals(self):
+        self.rocket.delete()
+        self.rocket = None
+        self.smoke.destroy()
 
 
 @add_to_bullet_classes
@@ -1673,6 +1707,7 @@ def on_draw():
         gl.glClearColor(0xae / 0xff, 0x51 / 0xff, 0x39 / 0xff, 1.0)
         with lighting.illuminate():
             level.on_draw()
+            diffuse_system.draw()
             RobotSprite.draw_diffuse()
         RobotSprite.draw_emit()
         level.bullet_batch.draw()
@@ -1728,6 +1763,7 @@ yrot = 0.0
 MEAN_FIRE_INTERVAL = 3.0
 
 
+pyglet.clock.schedule_interval(diffuse_system.update, (1.0/30.0))
 pyglet.clock.schedule_interval(default_system.update, (1.0/30.0))
 pyglet.clock.set_fps_limit(None)
 
