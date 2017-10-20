@@ -113,11 +113,15 @@
  </tile>
  <tile id="30">
   <properties>
+   <property name="lightx" type="float" value="0.05"/>
+   <property name="lighty" type="float" value="0.5"/>
    <property name="wall" type="int" value="0"/>
   </properties>
  </tile>
  <tile id="31">
   <properties>
+   <property name="lightx" type="float" value="0.5"/>
+   <property name="lighty" type="float" value="0.95"/>
    <property name="wall" type="int" value="0"/>
   </properties>
  </tile>
@@ -153,10 +157,19 @@
  </tile>
  <tile id="42">
   <properties>
+   <property name="lightx" type="float" value="0.5"/>
+   <property name="lighty" type="float" value="0.05"/>
    <property name="wall" type="int" value="0"/>
   </properties>
  </tile>
  <tile id="43">
+  <properties>
+   <property name="lightx" type="float" value="0.95"/>
+   <property name="lighty" type="float" value="0.5"/>
+   <property name="wall" type="int" value="0"/>
+  </properties>
+ </tile>
+ <tile id="48">
   <properties>
    <property name="wall" type="int" value="0"/>
   </properties>
@@ -164,6 +177,11 @@
  <tile id="49">
   <properties>
    <property name="wall" type="int" value="2"/>
+  </properties>
+ </tile>
+ <tile id="50">
+  <properties>
+   <property name="wall" type="int" value="0"/>
   </properties>
  </tile>
  <tile id="51">
