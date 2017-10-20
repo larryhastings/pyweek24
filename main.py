@@ -240,7 +240,6 @@ class Fab(BigRobotSprite):
         level.space.add(shape)
         level.space.add(self.body)
         level.start_pos = level.world_to_map(position + Vec2d(0, -64))
-        print(level.start_pos)
 
 
 class Game:

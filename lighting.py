@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from math import floor, ceil, degrees
+from math import floor, ceil, degrees, sqrt
 
 from pyglet import gl
 import lightvolume
@@ -132,13 +132,24 @@ class LightRenderer:
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.fbo.textures[0])
         lighting_shader.bind()
         lighting_shader.uniformi('diffuse_tex', 0)
-#        lighting_shader.uniformf('viewport_pos', *self.viewport.pos)
-#        lighting_shader.uniformf('viewport_dims', self.viewport.w, self.viewport.h)
-#        lighting_shader.uniformf('viewport_angle', self.viewport.angle)
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendFunc(gl.GL_ONE, gl.GL_ONE)
+
+        vpw = self.viewport.w
+        vph = self.viewport.h
+        vpx, vpy = self.viewport.position
+        vpradius = sqrt(vpw * vpw + vph * vph) * 0.5
+
+        c = 0
         for light in self.lights:
-            self.render_light(light)
+            lx, ly = light.position
+            maxdist = light.attenuation + vpradius
+            dx = vpx - lx * self.tilew
+            dy = vpy - ly * self.tilew
+            dist = sqrt(dx * dx + dy * dy)
+            if dist < maxdist:
+                self.render_light(light)
+                c += 1
         lighting_shader.unbind()
 
         # Draw ambient using a full-screen quad
