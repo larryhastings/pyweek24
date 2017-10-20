@@ -499,7 +499,7 @@ class Level:
                     ]
                 shape = pymunk.Poly(body, vertices)
                 shape.collision_type = CollisionType.WALL
-                shape.elasticity = 0.0
+                shape.elasticity = 1.0
                 self.space.add(shape)
 
         # finally, draw a square-donut-shaped collision region
@@ -519,7 +519,7 @@ class Level:
             shape = pymunk.Poly.create_box(body, (width, height))
             # print(f"bounding box, center {center_x} {center_y} width {width} height {height}")
             shape.collision_type = CollisionType.WALL
-            shape.elasticity = 0.0
+            shape.elasticity = 1.0
             self.space.add(body, shape)
 
         boundary_delta = Vec2d(100, 100)
@@ -617,14 +617,15 @@ class BulletBase:
         self.damage = int(PLAYER_BASE_DAMAGE * modifier.damage_multiplier)
         self.cooldown = int(random.randrange(*shooter.cooldown_range) * modifier.cooldown_multiplier)
 
-        self.collided = False
+        self.spent = False
 
     def close(self):
         bullets.discard(self)
         self.__class__.finishing_tick.append(self)
 
     def on_collision_wall(self, shape):
-        pass
+        self.spent = True
+        self.close()
 
     # we rely on collision filters to prevent
     # the wrong kind of collision from happening
@@ -632,12 +633,16 @@ class BulletBase:
     def on_collision_player(self, shape):
         assert self.shooter != player
         player.on_damage(self.damage)
+        self.spent = True
+        self.close()
 
     def on_collision_robot(self, shape):
         assert self.shooter is player
         robot = shape_to_robot.get(shape)
         if robot:
             robot.on_damage(self.damage)
+            self.spent = True
+            self.close()
 
     def on_draw(self):
         pass
@@ -650,8 +655,10 @@ class Bullet(BulletBase):
 
     def __init__(self):
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
-        self.body.velocity_func = self.on_update_velocity
+        # self.body.velocity_func = self.on_update_velocity
         self.image = bullet_flare
+        self.bounces = 0
+        self.last_bounced_wall = None
 
         # bullets are circles with diameter 1/2 the same as tile width (and tile height)
         assert level.tiles.tileheight == level.tiles.tilewidth
@@ -666,6 +673,9 @@ class Bullet(BulletBase):
         # HANDLE SHAPE
         # HANDLE COLOR
 
+        self.bounces = modifier.bounces
+        self.last_bounced_wall = None
+
         vector = Vec2d(vector).normalized()
         self.velocity = Vec2d(vector) * shooter.bullet_speed * modifier.speed
 
@@ -673,9 +683,11 @@ class Bullet(BulletBase):
         self.position = Vec2d(shooter.position) + bullet_offset
 
         self.body.position = Vec2d(self.position)
+        self.body.velocity = Vec2d(self.velocity)
         level.space.reindex_shapes_for_body(self.body)
         self.shape.collision_type = shooter.bullet_collision_type
         self.shape.filter = shooter.bullet_collision_filter
+        self.shape.elasticity = 1.0
 
         self.light = Light(self.position)
         lighting.add_light(self.light)
@@ -702,9 +714,14 @@ class Bullet(BulletBase):
         sprite_coord -= Vec2d(64, 64)
         self.sprite.position = sprite_coord
 
-    def on_update_velocity(self, body, gravity, damping, dt):
-        self.body.velocity = self.velocity
+    # def on_update_velocity(self, body, gravity, damping, dt):
+    #     self.body.velocity = self.velocity
 
+    def on_collision_wall(self, wall_shape):
+        if self.bounces:
+            self.bounces -= 1
+            return
+        super().on_collision_wall(wall_shape)
 
 @add_to_bullet_classes
 class BossKillerBullet(Bullet):
@@ -781,6 +798,8 @@ class Weapon:
             speed=1,
             color=BulletColor.BULLET_COLOR_WHITE,
             shape=BulletShape.BULLET_SHAPE_NORMAL,
+            bounces = 0,
+            bullets = 1,
             cls=Bullet):
         self.name = name
         self.damage_multiplier = damage_multiplier
@@ -788,6 +807,8 @@ class Weapon:
         self.speed = speed
         self.color = color
         self.shape = shape
+        self.bounces = bounces
+        self.bullets = bullets
         self.cls = cls
 
     def __repr__(self):
@@ -799,6 +820,8 @@ class Weapon:
             ("color",BulletColor.BULLET_COLOR_WHITE),
             ("shape",BulletShape.BULLET_SHAPE_NORMAL),
             ("cls",Bullet),
+            ("bounces",0),
+            ("bullets",1),
             ):
             value = getattr(self, attr)
             if value != default:
@@ -867,18 +890,17 @@ def bullet_collision(entity, arbiter):
     # only handle the first collision for a bullet
     # (we tell pymunk to forget about the bullet,
     # but it still finishes the current timestep)
-    if bullet.collided:
+    if bullet.spent:
         return False
-    bullet.collided = True
 
     attr_name = "on_collision_" + entity
     callback = getattr(bullet, attr_name, None)
     if callback:
-        callback(entity_shape)
+        returned = callback(entity_shape)
+        if returned is not None:
+            return returned
 
-    if bullet and bullet in bullets:
-        bullet.close()
-    return False
+    return True
 
 def on_player_bullet_hit_wall(arbiter, space, data):
     return bullet_collision("wall", arbiter)
@@ -908,19 +930,21 @@ class Powerup(IntEnum):
 # each powerup gives you approximately 1.4x more power
 # but you also give something up
 bullet_modifiers = [
-    Weapon("two-shot",
+    Weapon("triple",
         damage_multiplier=0.4,
         cooldown_multiplier=0.6,
         speed=1.3,
-        shape=BulletShape.BULLET_SHAPE_TINY),
-    Weapon("damage boost",
+        shape=BulletShape.BULLET_SHAPE_TINY,
+        bullets=3),
+    Weapon("boosted",
         damage_multiplier=1.6,
         cooldown_multiplier=3,
         speed=0.7,
         color=BulletColor.BULLET_COLOR_RED),
-    Weapon("bounce",
+    Weapon("bouncy",
         damage_multiplier=0.8,
-        cooldown_multiplier=1.5),
+        cooldown_multiplier=1.5,
+        bounces=1),
     Weapon("railgun",
         damage_multiplier=1.2,
         cooldown_multiplier=1.2,
@@ -945,17 +969,14 @@ for i in range(16):
                 names.append(delta.name)
                 weapon.damage_multiplier *= delta.damage_multiplier
                 weapon.cooldown_multiplier *= delta.cooldown_multiplier
+                weapon.bounces += delta.bounces
+                weapon.bullets += (delta.bullets - 1)
                 if delta.cls != Bullet:
                     weapon.cls = delta.cls
                 if delta.color != BulletColor.BULLET_COLOR_WHITE:
                     weapon.color = delta.color
-        assert names, f"names empty for i {i}"
-        if len(names) == 1:
-            weapon.name = names[0]
-        elif len(names) == 2:
-            weapon.name = f"{names[0]} and {names[1]}"
-        else:
-            weapon.name = ", ".join(names[:-1]) + ", and " + names[-1]
+        names.append("shot")
+        weapon.name = " ".join(names)
 
     weapon_matrix.append(weapon)
 
@@ -1027,7 +1048,7 @@ class Player:
         self.shape = pymunk.Circle(self.body, self.radius)
         self.shape.collision_type = CollisionType.PLAYER
         self.shape.filter = level.player_collision_filter
-        self.shape.elasticity = 0.0
+        self.shape.elasticity = 0.1
         level.space.add(self.body, self.shape)
         self.trail = Trail(self, viewport, level)
 
