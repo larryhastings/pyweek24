@@ -172,9 +172,7 @@ class RobotSprite:
         self.sprite.rotation = -math.degrees(v)
 
     def delete(self):
-        # TODO
-        # DAN FIX THIS OR SOMETHING
-        self.sprite.position = (1000000, 1000000)
+        self.sprite.delete()
 
 
 
