@@ -101,7 +101,7 @@ class MapRenderer:
         self.sprites = {}
         for layernum, layer in enumerate(tmxfile.layers):
             for i, tile in enumerate(layer.tiles):
-                if tile.gid == 0:
+                if tile.gid == 0 or tile.gid not in self.tiles:
                     continue
                 y, x = divmod(i, self.width)
                 y = self.height - y - 1
