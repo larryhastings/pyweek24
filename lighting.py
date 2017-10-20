@@ -71,6 +71,26 @@ class LightRenderer:
         self.lights = set()
         self.fbo = None
         self.ambient = ambient
+        self.sh = None
+
+    def _build_spatial_hash(self):
+        sh = {}
+        for (tx, ty), wall in self.shadow_casters.items():
+            if wall:
+                sh[tx, ty] = self._make_volume(tx, ty, wall)
+        return sh
+
+    def _make_volume(self, tx, ty, wall):
+        if wall == 2:
+            return lightvolume.rect(
+                (tx + 0.25) * self.tilew, (tx + 0.75) * self.tilew,
+                (ty + 0.25) * self.tilew, (ty + 0.75) * self.tilew
+            )
+        else:
+            return lightvolume.rect(
+                tx * self.tilew, (tx + 1) * self.tilew,
+                ty * self.tilew, (ty + 1) * self.tilew
+            )
 
     def add_light(self, light):
         """Add a light to the renderer."""
@@ -100,6 +120,9 @@ class LightRenderer:
             gl.glPushAttrib(gl.GL_ALL_ATTRIB_BITS)
             yield
             gl.glPopAttrib()
+
+        if self.sh is None:
+            self.sh = self._build_spatial_hash()
         self.render()
 
     def render(self):
@@ -142,20 +165,9 @@ class LightRenderer:
 
         for tx in range(int(floor(l)), int(ceil(r))):
             for ty in range(int(floor(b)), int(ceil(t))):
-                wall = self.shadow_casters.get((tx, ty), 0)
-                if wall == 2:
-                    vol = lightvolume.rect(
-                        (tx + 0.25) * self.tilew, (tx + 0.75) * self.tilew,
-                        (ty + 0.25) * self.tilew, (ty + 0.75) * self.tilew
-                    )
-                elif wall:
-                    vol = lightvolume.rect(
-                        tx * self.tilew, (tx + 1) * self.tilew,
-                        ty * self.tilew, (ty + 1) * self.tilew
-                    )
-                else:
-                    continue
-                volumes.append(vol)
+                vol = self.sh.get((tx, ty))
+                if vol:
+                    volumes.append(vol)
 
         wx = x * self.tilew
         wy = y * self.tilew
