@@ -1310,6 +1310,22 @@ class RobotMovesRandomly(RobotBehaviour):
         self.pick_new_vector()
 
 
+class RobotMovesStraightTowardsPlayer(RobotBehaviour):
+    def __init__(self, robot):
+        super().__init__(robot)
+        # how many units per second
+        self.speed = (1 + (random.random() * 2.5))
+
+    # TODO if you have time: make it try to go around walls?
+    # def on_collision_wall(self, wall_shape):
+    #     self.pick_new_vector()
+
+    def on_update(self, dt):
+        vector = player.position - self.robot.position
+        vector = vector.normalized() * self.speed
+        self.robot.velocity = vector
+
+
 
 class Robot:
     def __init__(self, position, evolution=0):
@@ -1487,7 +1503,8 @@ player.on_player_moved()
 robot = Robot(player.position + Vec2d(5, -5))
 # RobotShootsConstantly(robot)
 RobotShootsOnlyWhenPlayerIsVisible(robot)
-RobotMovesRandomly(robot)
+# RobotMovesRandomly(robot)
+RobotMovesStraightTowardsPlayer(robot)
 
 keypress_handlers = {}
 def keypress(key):
