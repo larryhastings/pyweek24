@@ -825,6 +825,8 @@ class Player:
 
         self.trail = Trail(self, viewport, level)
 
+        self.ray = Ray(self.sprite.position, self.sprite.position, width=3, color=(1.0, 0.0, 0.0, 0.5))
+
     def calculate_speed(self):
         if self.velocity != self.desired_velocity:
             self.velocity = vector_clamp(self.velocity + self.acceleration, self.desired_velocity)
@@ -925,6 +927,13 @@ class Player:
             b = new_player_bullet()
 
         self.sprite.angle = reticle.theta
+
+        raystart = Vec2d(*self.sprite.position)
+        ray = Vec2d(1, 0).rotated(reticle.theta)
+        self.ray.ends = (
+            raystart + ray * 16,
+            raystart + ray * 300
+        )
 
     def on_draw(self):
         self.sprite.draw()
@@ -1147,6 +1156,88 @@ class Robot:
                 return
 
 
+class Ray:
+    tex = pyglet.resource.texture('ray.png')
+    batch = pyglet.graphics.Batch()
+    group = pyglet.sprite.SpriteGroup(
+        tex,
+        gl.GL_SRC_ALPHA,
+        gl.GL_ONE_MINUS_SRC_ALPHA,
+    )
+
+    @classmethod
+    def draw(cls):
+        cls.batch.draw()
+
+    __slots__ = (
+        '_start', '_end', '_width', 'vl',
+    )
+
+    def __init__(self, start, end, width=2.0, color=(1.0, 1.0, 1.0, 0.5)):
+        self._start = Vec2d(start)
+        self._end = Vec2d(end)
+        self._width = width * 0.5
+        self.vl = self.batch.add(
+            4, gl.GL_QUADS, self.group,
+            ('v2f/dynamic', (0, 0, 1, 0, 1, 1, 0, 1)),
+            ('t2f/dynamic', (0, 0, 0, 1, 1, 1, 1, 0)),
+            ('c4f/static', [comp for _ in range(4) for comp in color]),
+        )
+        self._recalculate()
+
+    @property
+    def start(self):
+        return self._start
+
+    @start.setter
+    def start(self, v):
+        self._start = Vec2d(v)
+        self._recalculate()
+
+    @property
+    def end(self):
+        return self._end
+
+    @end.setter
+    def end(self, v):
+        self._end = Vec2d(v)
+        self._recalculate()
+
+    @property
+    def ends(self):
+        return self._start, self._end
+
+    @end.setter
+    def ends(self, v):
+        start, end = v
+        self._start = Vec2d(start)
+        self._end = Vec2d(end)
+        self._recalculate()
+
+    @property
+    def width(self):
+        return self._width * 2.0
+
+    @width.setter
+    def width(self, v):
+        self._width = v * 0.5
+        self._recalculate()
+
+    def _recalculate(self):
+        """Update the vertices."""
+        forward = self._end - self._start
+        across = forward.perpendicular_normal() * self._width
+        corners = [
+            self._start + across,
+            self._start - across,
+            self._end - across,
+            self._end + across,
+        ]
+        self.vl.vertices = [f for c in corners for f in c]
+
+    def delete(self):
+        self.vl.delete()
+
 
 game = Game()
 # level = Level("prototype")
@@ -1279,6 +1370,7 @@ def on_draw():
         level.bullet_batch.draw()
 
         default_system.draw()
+        Ray.draw()
     game.on_draw()
     # with debug_viewport:
     #     glScalef(8.0, 8.0, 8.0)
@@ -1289,11 +1381,11 @@ def on_update(dt):
     if game.paused:
         return
 
-    player.on_update(dt)
     level.space.step(dt)
     # print()
     # print("PLAYER", player.body.position)
     player.on_player_moved()
+    player.on_update(dt)
     for robot in robots:
         robot.on_update(dt)
     for bullet in bullets:
