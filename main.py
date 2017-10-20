@@ -11,14 +11,15 @@ import random
 import sys
 
 # built from source, removed "inline" from Group_kill_p in */group.h
-import lepton
-
-from maprenderer import MapRenderer, Viewport, LightRenderer, Light
+from lepton import default_system
 
 # pip3.6 install pyglet
 import pyglet.resource
 import pyglet.window.key
 from pyglet import gl
+
+pyglet.resource.path = [".", "gfx", "gfx/kenney_roguelike/Spritesheet"]
+pyglet.resource.reindex()
 
 # pip3.6 install pymunk
 # GAAH, prevent pymunk from printing to stdout on import
@@ -38,12 +39,14 @@ vector_unit_y = Vec2d(0, 1)
 # pip3.6 install tmx
 import tmx
 
+#
+
+from particles import Trail, Kaboom
+from maprenderer import MapRenderer, Viewport, LightRenderer, Light
+
 
 key = pyglet.window.key
 EVENT_HANDLED = pyglet.event.EVENT_HANDLED
-
-pyglet.resource.path = [".", "gfx", "gfx/kenney_roguelike/Spritesheet"]
-pyglet.resource.reindex()
 
 window = pyglet.window.Window()
 window.set_exclusive_mouse(True)
@@ -169,9 +172,7 @@ class RobotSprite:
         self.sprite.rotation = -math.degrees(v)
 
     def delete(self):
-        # TODO
-        # DAN FIX THIS OR SOMETHING
-        self.sprite.position = (1000000, 1000000)
+        self.sprite.delete()
 
 
 
@@ -258,6 +259,8 @@ class Level:
         self.tiles = tmx.TileMap.load(tmx_path)
         self.maprenderer = MapRenderer(self.tiles)
         lighting.shadow_casters = self.maprenderer.shadow_casters
+        for lt in self.maprenderer.light_objects:
+            lighting.add_light(lt)
         self.collision_gids = self.maprenderer.collision_gids
         self.tilew = self.maprenderer.tilew
         lighting.tilew = self.tilew  # ugh, sorry
@@ -567,7 +570,7 @@ robot_finishing_tick = []
 
 shape_to_bullet = {}
 
-bullet_flare = pyglet.image.load("flare3.png")
+bullet_flare = pyglet.resource.image("flare3.png")
 
 
 class BulletColor(IntEnum):
@@ -1002,6 +1005,9 @@ class Player:
         self.shape.filter = level.player_collision_filter
         self.shape.elasticity = 0.0
         level.space.add(self.body, self.shape)
+        self.trail = Trail(self, viewport, level)
+
+        self.ray = Ray(self.sprite.position, self.sprite.position, width=3, color=(1.0, 0.0, 0.0, 0.5))
 
     def toggle_weapon(self, bit):
         i = 1 << (bit - 1)
@@ -1013,7 +1019,6 @@ class Player:
         # print(weapon_matrix[index])
         # print()
         self.weapon_index = index
-
 
     def calculate_speed(self):
         if self.velocity != self.desired_velocity:
@@ -1116,6 +1121,13 @@ class Player:
             self.cooldown = bullet.cooldown
 
         self.sprite.angle = reticle.theta
+
+        raystart = Vec2d(*self.sprite.position)
+        ray = Vec2d(1, 0).rotated(reticle.theta)
+        self.ray.ends = (
+            raystart + ray * 16,
+            raystart + ray * 300
+        )
 
     def on_draw(self):
         self.sprite.draw()
@@ -1354,6 +1366,88 @@ class Robot:
                 return
 
 
+class Ray:
+    tex = pyglet.resource.texture('ray.png')
+    batch = pyglet.graphics.Batch()
+    group = pyglet.sprite.SpriteGroup(
+        tex,
+        gl.GL_SRC_ALPHA,
+        gl.GL_ONE_MINUS_SRC_ALPHA,
+    )
+
+    @classmethod
+    def draw(cls):
+        cls.batch.draw()
+
+    __slots__ = (
+        '_start', '_end', '_width', 'vl',
+    )
+
+    def __init__(self, start, end, width=2.0, color=(1.0, 1.0, 1.0, 0.5)):
+        self._start = Vec2d(start)
+        self._end = Vec2d(end)
+        self._width = width * 0.5
+        self.vl = self.batch.add(
+            4, gl.GL_QUADS, self.group,
+            ('v2f/dynamic', (0, 0, 1, 0, 1, 1, 0, 1)),
+            ('t2f/dynamic', (0, 0, 0, 1, 1, 1, 1, 0)),
+            ('c4f/static', [comp for _ in range(4) for comp in color]),
+        )
+        self._recalculate()
+
+    @property
+    def start(self):
+        return self._start
+
+    @start.setter
+    def start(self, v):
+        self._start = Vec2d(v)
+        self._recalculate()
+
+    @property
+    def end(self):
+        return self._end
+
+    @end.setter
+    def end(self, v):
+        self._end = Vec2d(v)
+        self._recalculate()
+
+    @property
+    def ends(self):
+        return self._start, self._end
+
+    @end.setter
+    def ends(self, v):
+        start, end = v
+        self._start = Vec2d(start)
+        self._end = Vec2d(end)
+        self._recalculate()
+
+    @property
+    def width(self):
+        return self._width * 2.0
+
+    @width.setter
+    def width(self, v):
+        self._width = v * 0.5
+        self._recalculate()
+
+    def _recalculate(self):
+        """Update the vertices."""
+        forward = self._end - self._start
+        across = forward.perpendicular_normal() * self._width
+        corners = [
+            self._start + across,
+            self._start - across,
+            self._end - across,
+            self._end + across,
+        ]
+        self.vl.vertices = [f for c in corners for f in c]
+
+    def delete(self):
+        self.vl.delete()
+
 
 game = Game()
 # level = Level("prototype")
@@ -1495,6 +1589,7 @@ def on_mouse_release(x, y, button, modifiers):
 def on_draw():
     gl.glClearColor(0, 0, 0, 1.0)
     window.clear()
+    gl.glEnable(gl.GL_BLEND)
     gl.glDisable(gl.GL_DEPTH_TEST)
     with viewport:
         gl.glClearColor(0xae / 0xff, 0x51 / 0xff, 0x39 / 0xff, 1.0)
@@ -1505,6 +1600,7 @@ def on_draw():
         level.bullet_batch.draw()
 
         default_system.draw()
+        Ray.draw()
     game.on_draw()
     # with debug_viewport:
     #     glScalef(8.0, 8.0, 8.0)
@@ -1515,11 +1611,11 @@ def on_update(dt):
     if game.paused:
         return
 
-    player.on_update(dt)
     level.space.step(dt)
     # print()
     # print("PLAYER", player.body.position)
     player.on_player_moved()
+    player.on_update(dt)
     for robot in robots:
         robot.on_update(dt)
     for bullet in bullets:
@@ -1532,160 +1628,24 @@ def on_update(dt):
 
 pyglet.clock.schedule_interval(on_update, 1/120.0)
 
-# fireworks
-import os
-import math
-from random import expovariate, uniform, gauss
-from pyglet import image
-from pyglet.gl import *
-
-from lepton import Particle, ParticleGroup, default_system, domain
-from lepton.renderer import BillboardRenderer
-from lepton.texturizer import SpriteTexturizer
-from lepton.emitter import StaticEmitter, PerParticleEmitter
-from lepton.controller import Gravity, Lifetime, Movement, Fader, ColorBlender, Growth
-
-spark_tex = image.load(os.path.join(os.path.dirname(__file__), 'flare3.png')).get_texture()
-spark_texturizer = SpriteTexturizer(spark_tex.id)
-
-
-class Trail:
-    LIFETIME = 0.2
-
-    sprite = pyglet.resource.texture('trail.png')
-    group = ParticleGroup(
-        controllers=[
-            Lifetime(LIFETIME),
-            #Fader(start_alpha=1.0, fade_out_start=0, fade_out_end=LIFETIME),
-            Growth(-50),
-            Movement(),
-        ],
-        renderer=BillboardRenderer(
-            SpriteTexturizer(sprite.id)
-        )
-    )
-
-    def __init__(self):
-        self.emitter = StaticEmitter(
-            rate=player.body.velocity.length,
-            template=Particle(
-                position=(*level.map_to_world(player.position), 0),
-                color=(1.0, 1.0, 1.0, 1.0),
-                size=(16.0,) * 3,
-            ),
-        )
-        self.group.bind_controller(self.emitter)
-        pyglet.clock.schedule(self.update)
-
-    def __del__(self):
-        self.group.unbind_controller(self.emitter)
-
-    def update(self, *_):
-        dir = player.body.velocity
-        l = dir.length
-        self.emitter.rate = l * 2
-
-        if l:
-            back = player.position - dir.normalized() * 0.1
-            backwards = -0.1 * dir
-            self.emitter.template.position = (*level.map_to_world(back), 0)
-            self.emitter.template.velocity = (*level.map_to_world(backwards), 0)
-            self.emitter.template.up = (0, 0, dir.get_angle() - viewport.angle)
-
-
-player_trail = Trail()
-
-
-class Kaboom:
-    lifetime = 5
-
-    def __init__(self, position):
-        color=(uniform(0,1), uniform(0,1), uniform(0,1), 1)
-        while max(color[:3]) < 0.9:
-            color=(uniform(0,1), uniform(0,1), uniform(0,1), 1)
-
-        x, y = position
-
-        spark_emitter = StaticEmitter(
-            template=Particle(
-                position=(uniform(x - 5, x + 5), uniform(y - 5, y + 5), 0),
-                size=(16,) * 3,
-                color=color),
-            deviation=Particle(
-                velocity=(gauss(0, 5), gauss(0, 5), 0),
-                age=1.5),
-            velocity=domain.Sphere((0, gauss(40, 20), 0), 60, 60))
-
-        self.sparks = ParticleGroup(
-            controllers=[
-                Lifetime(self.lifetime * 0.75),
-                Movement(damping=0.93),
-                ColorBlender([(0, (1,1,1,1)), (2, color), (self.lifetime, color)]),
-                Fader(fade_out_start=1.0, fade_out_end=self.lifetime * 0.5),
-            ],
-            renderer=BillboardRenderer(spark_texturizer)
-        )
-
-        spark_emitter.emit(int(gauss(60, 40)) + 50, self.sparks)
-
-        spread = abs(gauss(0.4, 1.0))
-        self.trail_emitter = PerParticleEmitter(self.sparks, rate=uniform(5,30),
-            template=Particle(
-                size=(10,) * 3,
-                color=color),
-            deviation=Particle(
-                velocity=(spread, spread, spread),
-                age=self.lifetime * 0.75))
-
-        self.trails = ParticleGroup(
-            controllers=[
-                Lifetime(self.lifetime * 1.5),
-                Movement(damping=0.83),
-                ColorBlender([(0, (1,1,1,1)), (1, color), (self.lifetime, color)]),
-                Fader(max_alpha=0.75, fade_out_start=0, fade_out_end=gauss(self.lifetime, self.lifetime*0.3)),
-                self.trail_emitter
-            ],
-            renderer=BillboardRenderer(spark_texturizer)
-        )
-
-        pyglet.clock.schedule_once(self.die, self.lifetime * 2)
-
-    def reduce_trail(self, dt=None):
-        if self.trail_emitter.rate > 0:
-            self.trail_emitter.rate -= 1
-
-    def die(self, dt=None):
-        default_system.remove_group(self.sparks)
-        default_system.remove_group(self.trails)
 
 # win = pyglet.window.Window(resizable=True, visible=False)
 # win.clear()
 
 def on_resize(width, height):
     """Setup 3D projection for window"""
-    glViewport(0, 0, width, height)
-    glMatrixMode(GL_PROJECTION)
-    glLoadIdentity()
-    gluPerspective(70, 1.0*width/height, 0.1, 1000.0)
-    glMatrixMode(GL_MODELVIEW)
-    glLoadIdentity()
+    gl.glViewport(0, 0, width, height)
+    gl.glMatrixMode(gl.GL_PROJECTION)
+    gl.glLoadIdentity()
+    gl.gluPerspective(70, 1.0*width/height, 0.1, 1000.0)
+    gl.glMatrixMode(gl.GL_MODELVIEW)
+    gl.glLoadIdentity()
 
     viewport.w = width
     viewport.h = height
 # window.on_resize = on_resize
 
 yrot = 0.0
-
-
-glEnable(GL_BLEND)
-glBlendFunc(GL_SRC_ALPHA,GL_ONE)
-glShadeModel(GL_SMOOTH)
-glHint(GL_PERSPECTIVE_CORRECTION_HINT,GL_NICEST);
-glDisable(GL_DEPTH_TEST)
-
-default_system.add_global_controller(
-    Gravity((0,-15,0))
-)
 
 MEAN_FIRE_INTERVAL = 3.0
 

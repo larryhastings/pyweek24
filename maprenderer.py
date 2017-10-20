@@ -79,9 +79,10 @@ class MapRenderer:
 
         # Build mapping of tile texture by gid
         self.tiles = {}
+        self.light_tiles = {}
         self.collision_gids = set()
+        self.collision_tiles = {}
         rows = (tileset.tilecount + tileset.columns - 1) // tileset.columns
-        tiles = iter(tileset.tiles)
 
         for tile in tileset.tiles:
             y, x = divmod(tile.id, tileset.columns)
@@ -93,13 +94,20 @@ class MapRenderer:
 
             # Load which gids are collidable here
             props = {p.name: p.value for p in tile.properties}
-            if props.get('wall') == '1':
+            wall = int(props.get('wall', '0'))
+            if wall:
                 self.collision_gids.add(gid)
+                self.collision_tiles[gid] = int(wall)
+
+            if 'lightx' in props:
+                lightx = props['lightx']
+                lighty = props['lighty']
+                self.light_tiles[gid] = lightx, lighty
 
         self.sprites = {}
         for layernum, layer in enumerate(tmxfile.layers):
             for i, tile in enumerate(layer.tiles):
-                if tile.gid == 0:
+                if tile.gid == 0 or tile.gid not in self.tiles:
                     continue
                 y, x = divmod(i, self.width)
                 y = self.height - y - 1
@@ -110,8 +118,17 @@ class MapRenderer:
                     batch=self.batch,
                     usage="static"
                 )
-                if tile.gid in self.collision_gids:
-                    self.shadow_casters[x, y] = True
+                gid = tile.gid
+                if gid in self.collision_tiles:
+                    wall = self.collision_tiles[gid]
+                    self.shadow_casters[x, y] = wall
+
+                light = self.light_tiles.get(gid)
+                if light:
+                    lx, ly = light
+                    self.light_objects.append(
+                        Light((lx + x, ly + y))
+                    )
                 self.sprites[x, y] = sprite
 
     def render(self):
@@ -254,13 +271,20 @@ class LightRenderer:
 
         for tx in range(int(floor(l)), int(ceil(r))):
             for ty in range(int(floor(b)), int(ceil(t))):
-                if self.shadow_casters.get((tx, ty)):
-                    volumes.append(
-                        lightvolume.rect(
-                            tx * self.tilew, (tx + 1) * self.tilew,
-                            ty * self.tilew, (ty + 1) * self.tilew
-                        )
+                wall = self.shadow_casters.get((tx, ty), 0)
+                if wall == 2:
+                    vol = lightvolume.rect(
+                        (tx + 0.25) * self.tilew, (tx + 0.75) * self.tilew,
+                        (ty + 0.25) * self.tilew, (ty + 0.75) * self.tilew
                     )
+                elif wall:
+                    vol = lightvolume.rect(
+                        tx * self.tilew, (tx + 1) * self.tilew,
+                        ty * self.tilew, (ty + 1) * self.tilew
+                    )
+                else:
+                    continue
+                volumes.append(vol)
 
         wx = x * self.tilew
         wy = y * self.tilew
