@@ -240,6 +240,33 @@ class Fab(BigRobotSprite):
         level.start_pos = level.world_to_map(position + Vec2d(0, -64))
 
 
+@big_object
+class Crate(RobotSprite):
+    SPRITE = 5, 2
+
+    def __init__(self, position):
+        super().__init__(position, self.SPRITE)
+
+        self.body = pymunk.Body(mass=50, moment=10, body_type=pymunk.Body.DYNAMIC)
+        self.body.position = Vec2d(level.world_to_map(self.position))
+        self.shape = pymunk.Poly.create_box(self.body, (1, 1))
+        level.space.add(self.shape)
+        level.space.add(self.body)
+        pyglet.clock.schedule(self.update)
+
+    def update(self, dt):
+        self.position = level.map_to_world(self.body.position)
+        self.angle = self.body.angle
+        self.body.angular_velocity *= 0.05 ** dt
+        self.body.velocity *= 0.05 ** dt
+
+    def delete(self):
+        level.space.remove(self.body)
+        level.space.remove(self.shape)
+        super().delete()
+
+
+
 class Game:
     def __init__(self):
         self.score = 0
