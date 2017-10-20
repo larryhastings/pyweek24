@@ -79,6 +79,7 @@ class MapRenderer:
 
         # Build mapping of tile texture by gid
         self.tiles = {}
+        self.light_tiles = {}
         self.collision_gids = set()
         self.collision_tiles = {}
         rows = (tileset.tilecount + tileset.columns - 1) // tileset.columns
@@ -98,6 +99,11 @@ class MapRenderer:
                 self.collision_gids.add(gid)
                 self.collision_tiles[gid] = int(wall)
 
+            if 'lightx' in props:
+                lightx = props['lightx']
+                lighty = props['lighty']
+                self.light_tiles[gid] = lightx, lighty
+
         self.sprites = {}
         for layernum, layer in enumerate(tmxfile.layers):
             for i, tile in enumerate(layer.tiles):
@@ -116,6 +122,13 @@ class MapRenderer:
                 if gid in self.collision_tiles:
                     wall = self.collision_tiles[gid]
                     self.shadow_casters[x, y] = wall
+
+                light = self.light_tiles.get(gid)
+                if light:
+                    lx, ly = light
+                    self.light_objects.append(
+                        Light((lx + x, ly + y))
+                    )
                 self.sprites[x, y] = sprite
 
     def render(self):

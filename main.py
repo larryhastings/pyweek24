@@ -256,6 +256,8 @@ class Level:
         self.tiles = tmx.TileMap.load(tmx_path)
         self.maprenderer = MapRenderer(self.tiles)
         lighting.shadow_casters = self.maprenderer.shadow_casters
+        for lt in self.maprenderer.light_objects:
+            lighting.add_light(lt)
         self.collision_gids = self.maprenderer.collision_gids
         self.tilew = self.maprenderer.tilew
         lighting.tilew = self.tilew  # ugh, sorry

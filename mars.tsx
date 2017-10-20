@@ -114,6 +114,18 @@
    <property name="wall" value="1"/>
   </properties>
  </tile>
+ <tile id="22">
+  <properties>
+   <property name="lightx" type="float" value="0.05"/>
+   <property name="lighty" type="float" value="0.5"/>
+  </properties>
+ </tile>
+ <tile id="23">
+  <properties>
+   <property name="lightx" type="float" value="0.5"/>
+   <property name="lighty" type="float" value="0.95"/>
+  </properties>
+ </tile>
  <tile id="24" probability="0.01">
   <properties>
    <property name="wall" value="0"/>
@@ -142,6 +154,18 @@
  <tile id="29" terrain="0,0,0,0">
   <properties>
    <property name="wall" value="1"/>
+  </properties>
+ </tile>
+ <tile id="30">
+  <properties>
+   <property name="lightx" type="float" value="0.5"/>
+   <property name="lighty" type="float" value="0.05"/>
+  </properties>
+ </tile>
+ <tile id="31">
+  <properties>
+   <property name="lightx" type="float" value="0.95"/>
+   <property name="lighty" type="float" value="0.5"/>
   </properties>
  </tile>
  <tile id="33">
