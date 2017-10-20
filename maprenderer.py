@@ -81,6 +81,7 @@ class MapRenderer:
         self.light_tiles = {}
         self.collision_gids = set()
         self.collision_tiles = {}
+
         rows = (tileset.tilecount + tileset.columns - 1) // tileset.columns
 
         for tile in tileset.tiles:
@@ -109,10 +110,10 @@ class MapRenderer:
         tile_map = bytearray()
         verts = []
         tcs = []
-        epsilon = 1
+        epsilon = 0
         for layernum, layer in enumerate(tile_layers):
             for i, tile in enumerate(layer.tiles):
-                if tile.gid == 0 or tile.gid not in self.tiles:
+                if tile.gid == 0:
                     continue
                 y, x = divmod(i, self.width)
                 y = self.height - y - 1
@@ -143,12 +144,11 @@ class MapRenderer:
                         Light((lx + x, ly + y))
                     )
 
-#        self.group = pyglet.sprite.SpriteGroup(
-#            self.tiles_tex.get_texture(),
-#            gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA
-#            #gl.GL_ONE, gl.GL_ZERO
-#        )
-        self.group = pyglet.graphics.Group()
+        self.group = pyglet.sprite.SpriteGroup(
+            self.tiles_tex.get_texture(),
+            gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA
+            #gl.GL_ONE, gl.GL_ZERO
+        )
         self.vl = self.batch.add(
             len(verts) // 2,
             gl.GL_QUADS,
@@ -158,16 +158,5 @@ class MapRenderer:
         )
 
     def render(self):
-        gl.glDisable(gl.GL_DEPTH_TEST)
-        gl.glDisable(gl.GL_BLEND)
-        gl.glEnable(gl.GL_TEXTURE_2D)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, self.tiles_tex.get_texture().id)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR_MIPMAP_NEAREST)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
-        gl.glGenerateMipmap(gl.GL_TEXTURE_2D);
-
         self.batch.draw()
-        gl.glEnable(gl.GL_DEPTH_TEST)
 
