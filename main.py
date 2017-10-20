@@ -42,7 +42,8 @@ import tmx
 #
 
 from particles import Trail, Kaboom
-from maprenderer import MapRenderer, Viewport, LightRenderer, Light
+from maprenderer import MapRenderer, Viewport
+from lighting import LightRenderer, Light
 
 
 key = pyglet.window.key
