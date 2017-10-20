@@ -717,12 +717,18 @@ class RailgunBullet(BulletBase):
     finishing_tick = []
     freelist = []
 
+    colors = [
+        None,
+        (1.0, 1.0, 1.0, 0.5),
+        (1.0, 0.0, 0.0, 0.5),
+        ]
+
     radius = 0.1
 
     def _fire(self, shooter, vector, modifier):
         super()._fire(shooter, vector, modifier)
 
-        print("railgun FIRE! pew!")
+        # print("railgun FIRE! pew!")
         vector = Vec2d(vector).normalized()
 
         long_enough_vector = vector * 150
@@ -745,9 +751,25 @@ class RailgunBullet(BulletBase):
             if robot:
                 robot.on_damage(self.damage)
 
-        # we're done here!
-        # at least, until we start displaying graphical effects
-        self.close()
+        offset = reticle.offset.normalized() * player.radius
+        ray_start = level.map_to_world(shooter.position + offset)
+        ray_end = level.map_to_world(wall_hit.point)
+
+        # print("RAILGUN COLOR", modifier.color)
+        self.ray = Ray(ray_start, ray_end, width=3, color=self.colors[modifier.color])
+        self.display_countdown = 0.05 # seconds to leave the ray onscreen
+
+
+    def on_update(self, dt):
+        if self.display_countdown >= 0:
+            self.display_countdown -= dt
+            if self.display_countdown < 0:
+                self.close()
+
+    def close(self):
+        super().close()
+        self.ray.delete()
+        self.ray = None
 
 
 
@@ -925,6 +947,8 @@ for i in range(16):
                 weapon.cooldown_multiplier *= delta.cooldown_multiplier
                 if delta.cls != Bullet:
                     weapon.cls = delta.cls
+                if delta.color != BulletColor.BULLET_COLOR_WHITE:
+                    weapon.color = delta.color
         assert names, f"names empty for i {i}"
         if len(names) == 1:
             weapon.name = names[0]
@@ -1007,7 +1031,7 @@ class Player:
         level.space.add(self.body, self.shape)
         self.trail = Trail(self, viewport, level)
 
-        self.ray = Ray(self.sprite.position, self.sprite.position, width=3, color=(1.0, 0.0, 0.0, 0.5))
+        # self.ray = Ray(self.sprite.position, self.sprite.position, width=3, color=(1.0, 0.0, 0.0, 0.5))
 
     def toggle_weapon(self, bit):
         i = 1 << (bit - 1)
@@ -1015,9 +1039,9 @@ class Player:
             index = self.weapon_index & ~i
         else:
             index = self.weapon_index | i
-        # print(f"weapon changed from {self.weapon_index} to {index}")
-        # print(weapon_matrix[index])
-        # print()
+        print(f"weapon changed from {self.weapon_index} to {index}")
+        print(weapon_matrix[index])
+        print()
         self.weapon_index = index
 
     def calculate_speed(self):
@@ -1122,12 +1146,12 @@ class Player:
 
         self.sprite.angle = reticle.theta
 
-        raystart = Vec2d(*self.sprite.position)
-        ray = Vec2d(1, 0).rotated(reticle.theta)
-        self.ray.ends = (
-            raystart + ray * 16,
-            raystart + ray * 300
-        )
+        # raystart = Vec2d(*self.sprite.position)
+        # ray = Vec2d(1, 0).rotated(reticle.theta)
+        # self.ray.ends = (
+        #     raystart + ray * 16,
+        #     raystart + ray * 300
+        # )
 
     def on_draw(self):
         self.sprite.draw()
@@ -1616,9 +1640,9 @@ def on_update(dt):
     # print("PLAYER", player.body.position)
     player.on_player_moved()
     player.on_update(dt)
-    for robot in robots:
+    for robot in tuple(robots):
         robot.on_update(dt)
-    for bullet in bullets:
+    for bullet in tuple(bullets):
         bullet.on_update(dt)
     # print()
     for cls in BulletClasses:
