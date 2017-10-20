@@ -42,7 +42,8 @@ import tmx
 #
 
 from particles import Trail, Kaboom
-from maprenderer import MapRenderer, Viewport, LightRenderer, Light
+from maprenderer import MapRenderer, Viewport
+from lighting import LightRenderer, Light
 
 
 key = pyglet.window.key
@@ -107,12 +108,12 @@ class RobotSprite:
 
     ROWS = COLS = 8
 
+    batch = pyglet.graphics.Batch()
+    diffuse_tex = pyglet.resource.texture('robots_diffuse.png')
+    emit_tex = pyglet.resource.texture('robots_emit.png')
+
     @classmethod
     def load(cls):
-        cls.batch = pyglet.graphics.Batch()
-        cls.diffuse_tex = pyglet.resource.texture('robots_diffuse.png')
-        cls.emit_tex = pyglet.resource.texture('robots_emit.png')
-
         cls.flip_tex = pyglet.image.Texture(
             cls.diffuse_tex.width,
             cls.diffuse_tex.height,
@@ -200,13 +201,45 @@ class PlayerRobotSprite(RobotSprite):
                 f'{self.MIN}-{self.MAX} (not {v})'
             )
         self._level = v
-        self.sprite.image = self.sprites[self._level, self.ROW]
+        self.sprite.image = self.sprites[self._level, self.ROW + (v + 1) % 2]
 
 
 class EnemyRobotSprite(PlayerRobotSprite):
     """Sprites for the enemies."""
     ROW = 2
 
+
+class BigRobotSprite(RobotSprite):
+    ROWS = COLS = 4
+
+    SPRITE = 0, 0
+
+    def __init__(self, position):
+        super().__init__(position, self.SPRITE)
+
+
+OBJECT_TYPES = {}
+
+
+def big_object(cls):
+    """Register a class as implementing a big object loaded from level data."""
+    OBJECT_TYPES[cls.__name__] = cls
+
+
+@big_object
+class Fab(BigRobotSprite):
+    SPRITE = 0, 3
+
+    def __init__(self, position):
+        super().__init__(position)
+
+        self.body = pymunk.Body(mass=pymunk.inf, moment=pymunk.inf, body_type=pymunk.Body.STATIC)
+        self.body.position = Vec2d(level.world_to_map(self.position))
+        shape = pymunk.Poly.create_box(self.body, (2, 2))
+        shape.collision_type = CollisionType.WALL
+        level.space.add(shape)
+        level.space.add(self.body)
+        level.start_pos = level.world_to_map(position + Vec2d(0, -64))
 
 
 class Game:
@@ -228,10 +261,12 @@ class Game:
 
 
 class Level:
+    start_pos = Vec2d(50, 50)
+
     def __init__(self, basename):
         self.load(basename)
 
-        self.collision_tiles, self.player_position_tiles = (layer.tiles for layer in self.tiles.layers)
+        self.collision_tiles = self.tiles.layers[0].tiles
         self.upper_left = Vec2d(vector_zero)
         self.lower_right = Vec2d(
             self.tiles.width,
@@ -245,6 +280,16 @@ class Level:
         self.draw_options = pymunk.pyglet_util.DrawOptions()
         self.space.gravity = (0.0, 0.0)
         self.construct_collision_geometry()
+        self.objects = []
+
+    def spawn_map_objects(self):
+        for obj in self.tiles.layers[1].objects:
+            self.objects.append(
+                OBJECT_TYPES[obj.type]((
+                    obj.x + self.tilew,
+                    self.tiles.height * self.tilew - obj.y + obj.height // 2
+                ))
+            )
 
     def load(self, basename):
         # we should always save the tmx file
@@ -990,17 +1035,7 @@ class Player:
         self.bullet_speed = 40
         # determine position based on first nonzero tile
         # found in player starting position layer
-        for i, tile in enumerate(level.player_position_tiles):
-            if tile.gid:
-                # print("FOUND PLAYER TILE AT", i, level.tile_index_to_position(i))
-                self.position = level.tile_index_to_position(i)
-                break
-        else:
-            self.position = Vec2d(vector_zero)
-        # adjust player position
-        # TODO why is this what we wanted?!
-        self.position = self.position + Vec2d(0, level.tiles.tileheight)
-
+        self.position = level.start_pos
         self.velocity = Vec2d(vector_zero)
 
         # acceleration is a vector we add to velocity every frame
@@ -1510,11 +1545,13 @@ class Ray:
         self.vl.delete()
 
 
+RobotSprite.load()
+BigRobotSprite.load()
+
 game = Game()
 # level = Level("prototype")
-level = Level("level1")
-
-RobotSprite.load()
+level = Level("new_mars")
+level.spawn_map_objects()
 
 reticle = Reticle()
 
