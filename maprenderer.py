@@ -62,8 +62,6 @@ class MapRenderer:
 
         self.light_objects = []
 
-        assert len(tmxfile.tilesets) == 1, "Multiple tilesets not supported."
-
         tileset = tmxfile.tilesets[0]
         filename = tileset.image.source
         self.tilew = tileset.tilewidth
