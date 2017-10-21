@@ -2009,8 +2009,9 @@ class Robot:
     def close(self):
         robots.discard(self)
         level.space.remove(self.body, self.shape)
-        self.sprite.delete()
-        self.sprite = None
+        if self.sprite:
+            self.sprite.delete()
+            self.sprite = None
 
     def on_died(self):
         for fn in self.on_died_callbacks:
