@@ -1011,7 +1011,7 @@ class Bullet(BulletBase):
 class BossKillerBullet(Bullet):
     finishing_tick = []
     freelist = []
-    radius = 0.7071067811865476 * 2
+    radius = 0.7071067811865476
     light_color = (2, 2, 10.0)
     light_radius = 400
     image = load_centered_image("white_circle.png")
@@ -1339,6 +1339,7 @@ weapon_matrix = []
 for i in range(16):
     if i == 0:
         weapon = Weapon("normal")
+        player_level = 0
     elif i == 15:
         weapon = Weapon("boss killer",
             cls=BossKillerBullet,
@@ -1346,6 +1347,7 @@ for i in range(16):
             damage_multiplier=1000,
             speed=0.2,
             )
+        player_level = 3
     else:
         weapon = Weapon("")
         names = []
@@ -1365,9 +1367,15 @@ for i in range(16):
                     weapon.shape = delta.shape
                 weapon.speed *= delta.speed
 
+        player_level = 0
+        if 'triple' in names:
+            player_level = 1
+        if 'railgun' in names:
+            player_level = 2
         names.append("shot")
         weapon.name = " ".join(names)
 
+    weapon.player_level = player_level
     weapon_matrix.append(weapon)
 
 
@@ -1441,9 +1449,10 @@ class Player:
             index = self.weapon_index & ~i
         else:
             index = self.weapon_index | i
-        print(f"weapon changed from {self.weapon_index} to {index}")
-        print(weapon_matrix[index])
-        print()
+
+        weapon = weapon_matrix[index]
+        print(f"Weapon: {weapon}\n")
+        self.sprite.level = weapon.player_level
         self.weapon_index = index
 
     def calculate_speed(self):
