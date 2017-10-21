@@ -381,12 +381,15 @@ class Game:
         self.lives = 5
 
         self.paused = False
-
         self.pause_label = pyglet.text.Label('[Pause]',
                           font_name='Times New Roman',
                           font_size=64,
                           x=window.width//2, y=window.height//2,
                           anchor_x='center', anchor_y='center')
+
+    def on_game_over(self):
+        self.pause_label.text = 'Game Over'
+        self.paused = True
 
     def on_draw(self):
         if self.paused:
@@ -1491,6 +1494,7 @@ for i in range(16):
 
 class Player:
     MAX_HP = 400
+    INITIAL_LIVES = 3
 
     def __init__(self):
         self.cooldown_range = (10, 12)
@@ -1534,6 +1538,7 @@ class Player:
         self.weapon_index = 0
 
         self.health = self.MAX_HP
+        self.lives = self.INITIAL_LIVES
 
         self.sprite = PlayerRobotSprite(level.map_to_world(self.position))
 
@@ -1689,7 +1694,9 @@ class Player:
     def respawn(self):
         self.alive = True
         self.health = self.MAX_HP
+        self.lives -= 1
         hud.set_health(1.0)
+        hud.set_lives(self.lives)
         self.body.position = level.start_pos
         self.on_player_moved()
         self.sprite.visible = True
@@ -1700,10 +1707,14 @@ class Player:
 
     def on_died(self):
         self.alive = False
+        self.shooting = False
         self.sprite.visible = False
         reticle.sprite.visible = False
         level.space.remove(self.body, self.shape)
-        pyglet.clock.schedule_once(lambda dt: self.respawn(), 1.5)
+        if self.lives:
+            pyglet.clock.schedule_once(lambda dt: self.respawn(), 1.5)
+        else:
+            game.on_game_over()
 
 
 class Reticle:
@@ -2261,7 +2272,7 @@ LEFT_MOUSE_BUTTON = pyglet.window.mouse.LEFT
 
 @window.event
 def on_mouse_press(x, y, button, modifiers):
-    if button == LEFT_MOUSE_BUTTON:
+    if button == LEFT_MOUSE_BUTTON and player.alive:
         player.shooting = True
 
 @window.event

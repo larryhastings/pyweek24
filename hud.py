@@ -5,7 +5,7 @@ from pyglet import gl
 
 
 class HUD:
-    SPACING = 10
+    SPACING = 5
 
     def __init__(self, viewport):
         self.viewport = viewport
@@ -53,6 +53,11 @@ class HUD:
         )
         self.power[0].opacity = 64
 
+        self.life_img = image.get_region(128, 0, 64, 20)
+
+        self.lives = []
+        self.set_lives(3)
+
     def set_weapon_visible(self, n, visible):
         self.weapons[n].visible = visible
 
@@ -82,6 +87,23 @@ class HUD:
         top = 20 + health * 100
         region = img.get_region(0, 0, img.width, top)
         sprite.image = region
+
+    def set_lives(self, num):
+        assert num >= 0
+
+        while num < len(self.lives):
+            self.lives.pop().delete()
+
+        while num > len(self.lives):
+            top = self.lives[-1] if self.lives else self.power[0]
+
+            s = pyglet.sprite.Sprite(
+                self.life_img,
+                self.viewport.w - self.SPACING - self.life_img.width,
+                top.y + top.height + self.SPACING,
+                batch=self.batch,
+            )
+            self.lives.append(s)
 
     def draw(self):
         self.batch.draw()
