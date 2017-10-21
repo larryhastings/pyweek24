@@ -252,6 +252,7 @@ OBJECT_TYPES = {}
 def big_object(cls):
     """Register a class as implementing a big object loaded from level data."""
     OBJECT_TYPES[cls.__name__] = cls
+    return cls
 
 
 class BigRobotSprite(BigSprite):
@@ -2319,7 +2320,6 @@ BigSprite.load()
 WideSprite.load()
 
 game = Game()
-# level = Level("prototype")
 level = Level("new_mars")
 level.spawn_map_objects()
 
