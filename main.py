@@ -63,7 +63,6 @@ debug_viewport = Viewport(50, 50)
 
 
 PLAYER_GLOW = (0, 0.4, 0.5)
-PLAYER_FIRING = (1.0, 0.95, 0.7)
 
 lighting = LightRenderer(viewport)
 
@@ -149,10 +148,12 @@ class RobotSprite:
         for group in cls.batch.top_groups:
             diff, emit = cls.flips[group.texture.id]
             group.texture = emit
+            group.blend_dest = gl.GL_ONE
             revert.append((group, diff))
         cls.batch.draw()
         for group, diff in revert:
             group.texture = diff
+            group.blend_dest = gl.GL_ONE_MINUS_SRC_ALPHA
 
     def __init__(self, position, sprite_position, angle=0):
         self.sprite = pyglet.sprite.Sprite(
@@ -979,6 +980,7 @@ class BulletBase:
 
     def draw_impact(self):
         Impact.emit(level.map_to_world(self.position), self.velocity)
+        light_flash(self.position, (1.0, 0.9, 0.5), 50)
 
 def anchor_image_to_center(image):
     image.anchor_x = image.anchor_y = image.width // 2
@@ -1207,7 +1209,7 @@ class RailgunBullet(BulletBase):
         super().__init__()
         self.rays = []
 
-    def fire_railgun_ray(self, start_point, shooter, vector, modifier):
+    def fire_railgun_ray(self, start_point, shooter, vector, modifier, reflected=False):
         vector = Vec2d(vector).normalized()
 
         long_enough_vector = vector * 150
@@ -1238,6 +1240,9 @@ class RailgunBullet(BulletBase):
         ray_start = level.map_to_world(start_point)
         ray_end = level.map_to_world(hit)
         Impact.emit(ray_end, -vector)
+
+        if not reflected:
+            light_flash(start_point, (2.0, 2.0, 2.0), 400)
 
         self.rays.append(Ray(ray_start, ray_end, width=1, color=self.colors[modifier.color]))
         # print("ADDED RAY", self.rays[-1])
@@ -1283,10 +1288,17 @@ class RailgunBullet(BulletBase):
         start_point = shooter.position + offset
 
         for i in range(modifier.bounces + 1):
-            hit, bounce_vector = self.fire_railgun_ray(start_point, shooter, vector, modifier)
+            hit, bounce_vector = self.fire_railgun_ray(
+                start_point,
+                shooter,
+                vector,
+                modifier,
+                reflected=bool(i)
+            )
             start_point = hit
             vector = bounce_vector
 
+        light_flash(hit, radius=90)
         self.growth = 1000
 
         pyglet.clock.schedule_once(self.die, 0.6)
@@ -2146,6 +2158,12 @@ player.on_player_moved()
 hud = HUD(viewport)
 
 
+def light_flash(position, color=(1.0, 1.0, 1.0), radius=200):
+    light = Light(position, color, radius)
+    lighting.add_light(light)
+    pyglet.clock.schedule_once(lambda dt: lighting.remove_light(light), 0.1)
+
+
 def spawn_robot(map_pos):
     robot = Robot(map_pos, evolution=random.randint(0, 3))
     # RobotMovesRandomly(robot)
@@ -2295,11 +2313,13 @@ def on_draw():
             level.on_draw()
             diffuse_system.draw()
             RobotSprite.draw_diffuse()
-        RobotSprite.draw_emit()
         level.bullet_batch.draw()
+        RobotSprite.draw_emit()
 
+        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
         default_system.draw()
         Ray.draw()
+        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
     hud.draw()
     game.on_draw()
 

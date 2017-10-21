@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.0" tiledversion="1.0.3" orientation="orthogonal" renderorder="right-up" width="50" height="50" tilewidth="32" tileheight="32" nextobjectid="18">
+<map version="1.0" tiledversion="1.0.3" orientation="orthogonal" renderorder="right-up" width="50" height="50" tilewidth="32" tileheight="32" nextobjectid="20">
  <properties>
   <property name="ambient" type="color" value="#ff26264c"/>
  </properties>
@@ -16,8 +16,9 @@
   <object id="8" gid="145" x="160" y="128" width="64" height="64"/>
   <object id="10" gid="182" x="47" y="307" width="32" height="32"/>
   <object id="11" gid="182" x="76" y="326" width="32" height="32"/>
-  <object id="12" gid="230" x="223" y="352" width="64" height="32"/>
-  <object id="14" gid="225" x="95" y="161" width="64" height="32" rotation="-270"/>
-  <object id="15" gid="240" x="321" y="161" width="64" height="32" rotation="-270"/>
+  <object id="12" gid="230" x="513" y="288" width="64" height="32"/>
+  <object id="14" gid="225" x="864" y="800" width="64" height="32" rotation="-270"/>
+  <object id="18" gid="240" x="1648" y="928" width="64" height="32"/>
+  <object id="19" gid="225" x="800" y="800" width="64" height="32" rotation="-270"/>
  </objectgroup>
 </map>
