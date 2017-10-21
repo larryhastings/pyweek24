@@ -168,7 +168,7 @@
  </tile>
  <tile id="33">
   <properties>
-   <property name="cls" value=""/>
+   <property name="cls" value="Powerup1"/>
   </properties>
  </tile>
  <tile id="34">
@@ -178,7 +178,7 @@
  </tile>
  <tile id="35">
   <properties>
-   <property name="cls" value=""/>
+   <property name="cls" value="Powerup3"/>
   </properties>
  </tile>
  <tile id="36">
@@ -203,7 +203,7 @@
  </tile>
  <tile id="40">
   <properties>
-   <property name="cls" value=""/>
+   <property name="cls" value="Powerup0"/>
   </properties>
  </tile>
  <tile id="41">
@@ -213,7 +213,7 @@
  </tile>
  <tile id="42">
   <properties>
-   <property name="cls" value=""/>
+   <property name="cls" value="Powerup2"/>
   </properties>
  </tile>
  <tile id="43">
