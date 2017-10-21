@@ -559,7 +559,6 @@ class Level:
             spackles = set()
             def add_spackle(x1, y1, x2, y2):
                 new_rect = ((x1, y1), (x2, y2))
-                print("NEW RECT", new_rect)
                 if new_rect in spackles:
                     return
                 if new_rect in rect:
@@ -572,9 +571,6 @@ class Level:
                     spackled_above = spackled_below = False
                     y_above = rect[0][1] - 1
                     y_below = rect[1][1]
-                    print("SINGLE PASS ON RECT", rect)
-                    print("Y ABOVE", y_above)
-                    print("Y BELOW", y_below)
                     for x in iterator:
                         tile_above = self.collision_tile_at(x, y_above)
                         tile_below = self.collision_tile_at(x, y_below)
@@ -611,15 +607,14 @@ class Level:
                 s = ", ".join(a)
                 print("{" + s + "}")
 
-            print("--")
-            print("(printing these in tiled coordinates, YOU'RE WELCOME)")
-            print("blob")
-            print_inverted_blob(blob)
-            print()
-            print("spackles")
-            print_inverted_blob(spackles)
-            print()
-            # blob.update(spackles)
+            # print("--")
+            # print("(printing these in tiled coordinates, YOU'RE WELCOME)")
+            # print("blob")
+            # print_inverted_blob(blob)
+            # print()
+            # print("spackles")
+            # print_inverted_blob(spackles)
+            # print()
             new_blob = list(spackles)
             new_blob.extend(blob)
             blob_lists.append(new_blob)
@@ -750,10 +745,6 @@ class Level:
 
 shape_to_bullet = {}
 
-def anchor_image_to_center(image):
-    image.anchor_x = image.anchor_y = image.width // 2
-    return image
-
 
 
 class BulletColor(IntEnum):
@@ -854,11 +845,20 @@ class BulletBase:
     def draw_impact(self):
         Impact.emit(level.map_to_world(self.position), self.velocity)
 
+def anchor_image_to_center(image):
+    image.anchor_x = image.anchor_y = image.width // 2
+    return image
 
-bullet_image = anchor_image_to_center(pyglet.resource.image("bullet.png"))
-tiny_bullet_image = anchor_image_to_center(pyglet.resource.image("tiny_bullet.png"))
-red_bullet_image = anchor_image_to_center(pyglet.resource.image("red_bullet.png"))
-tiny_red_bullet_image = anchor_image_to_center(pyglet.resource.image("tiny_red_bullet.png"))
+def load_centered_image(filename):
+    image = pyglet.resource.image(filename)
+    anchor_image_to_center(image)
+    return image
+
+
+bullet_image = load_centered_image("bullet.png")
+tiny_bullet_image = load_centered_image("tiny_bullet.png")
+red_bullet_image = load_centered_image("red_bullet.png")
+tiny_red_bullet_image = load_centered_image("tiny_red_bullet.png")
 
 @add_to_bullet_classes
 class Bullet(BulletBase):
@@ -888,28 +888,11 @@ class Bullet(BulletBase):
 
         self.small_bullet = (body, images, radius, shape)
 
-    def _fire(self, shooter, vector, modifier):
-        if modifier.shape == BulletShape.BULLET_SHAPE_TINY:
-            bullet_shape = self.small_bullet
-        else:
-            bullet_shape = self.normal_bullet
+        self.red_bullet_color = (1.0, 0.0, 0.0)
+        self.normal_bullet_color = (1.0, 1.0, 1.0)
 
-        body, images, radius, shape = bullet_shape
-        if modifier.color == BulletColor.BULLET_COLOR_RED:
-            image = images[1]
-        else:
-            image = images[0]
 
-        self.body = body
-        self.image = image
-        self.radius = radius
-        self.shape = shape
-
-        super()._fire(shooter, vector, modifier)
-
-        # HANDLE SHAPE
-        # HANDLE COLOR
-
+    def _fire_basics(self, shooter, vector, modifier):
         self.bounces = modifier.bounces
         self.last_bounced_wall = None
 
@@ -931,8 +914,30 @@ class Bullet(BulletBase):
         self.create_visuals()
         self.on_update(0)
 
+    def _fire(self, shooter, vector, modifier):
+        if modifier.shape == BulletShape.BULLET_SHAPE_TINY:
+            bullet_shape = self.small_bullet
+        else:
+            bullet_shape = self.normal_bullet
+
+        body, images, radius, shape = bullet_shape
+        if modifier.color == BulletColor.BULLET_COLOR_RED:
+            image = images[1]
+            self.light_color = self.red_bullet_color
+        else:
+            image = images[0]
+            self.light_color = self.normal_bullet_color
+
+        self.body = body
+        self.image = image
+        self.radius = radius
+        self.shape = shape
+
+        super()._fire(shooter, vector, modifier)
+        self._fire_basics(shooter, vector, modifier)
+
     def create_visuals(self):
-        self.light = Light(self.position)
+        self.light = Light(self.position, self.light_color)
         lighting.add_light(self.light)
         self.sprite = pyglet.sprite.Sprite(
             self.image,
@@ -972,6 +977,52 @@ class Bullet(BulletBase):
             return
         super().on_collision_wall(wall_shape)
 
+
+@add_to_bullet_classes
+class BossKillerBullet(Bullet):
+    finishing_tick = []
+    freelist = []
+    radius = 0.7071067811865476 * 2
+    light_color = (0.85, 0.85, 1.0)
+    image = load_centered_image("white_circle.png")
+
+    def __init__(self):
+        self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
+        self.shape = pymunk.Circle(self.body, radius=self.radius, offset=(0, 0))
+        self.position = (0, 0)
+        shape_to_bullet[self.shape] = self
+
+    def _fire(self, shooter, vector, modifier):
+        BulletBase._fire(self, shooter, vector, modifier)
+        def really_fire():
+            self._fire_basics(shooter, vector, modifier)
+        self.really_fire = really_fire
+        self.t = 0
+        self.sparks_t = 0
+        self.sparks_repeat_t = 0.1
+        self.fire_t = 0.75
+        self.fired = False
+
+    def on_update(self, dt):
+        if self.fired:
+            super().on_update(dt)
+            return
+
+        self.t += dt
+        if self.t > self.fire_t:
+            self.fired = True
+            self.really_fire()
+            return
+
+        if self.t > self.sparks_t:
+            # sparks
+            player_edge = reticle.offset.normalized() * player.radius
+            player_screen = level.map_to_world(player.position + player_edge)
+            Impact.emit(player_screen, reticle.offset)
+            self.sparks_t += self.sparks_repeat_t
+            self.sparks_t *= 0.8
+
+
 @add_to_bullet_classes
 class Rocket(Bullet):
     finishing_tick = []
@@ -998,12 +1049,6 @@ class Rocket(Bullet):
 
 
 @add_to_bullet_classes
-class BossKillerBullet(Bullet):
-    finishing_tick = []
-    freelist = []
-
-
-@add_to_bullet_classes
 class RailgunBullet(BulletBase):
     finishing_tick = []
     freelist = []
@@ -1016,21 +1061,20 @@ class RailgunBullet(BulletBase):
 
     radius = 0
 
-    def _fire(self, shooter, vector, modifier):
-        super()._fire(shooter, vector, modifier)
+    def __init__(self):
+        super().__init__()
+        self.rays = []
 
-        # print("railgun FIRE! pew!")
+    def fire_railgun_ray(self, start_point, shooter, vector, modifier):
         vector = Vec2d(vector).normalized()
 
         long_enough_vector = vector * 150
-        railgun_test_endpoint = shooter.position + long_enough_vector
+        railgun_test_endpoint = start_point + long_enough_vector
 
-        collisions = level.space.segment_query(shooter.position, railgun_test_endpoint,
+        collisions = level.space.segment_query(start_point, railgun_test_endpoint,
             self.radius, level.player_bullet_collision_filter)
 
         # simulate collisions
-
-
         for collision in sorted(collisions, key=operator.attrgetter('alpha')):
             if collision.shape.body != shooter.body:
                 # Apply impulse
@@ -1039,39 +1083,86 @@ class RailgunBullet(BulletBase):
                     collision.point
                 )
             if collision.shape.collision_type & CollisionType.WALL:
-                hit = shooter.position + long_enough_vector * collision.alpha
+                hit = start_point + long_enough_vector * collision.alpha
+                normal = collision.normal
                 break
-            # TODO
-            # robots can't fire railguns yet
-            assert shooter is player
+
             robot = shape_to_robot.get(collision.shape)
             if robot:
                 robot.on_damage(self.damage)
         else:
             return
 
-        offset = reticle.offset.normalized() * player.radius
-        ray_start = level.map_to_world(shooter.position + offset)
+        ray_start = level.map_to_world(start_point)
         ray_end = level.map_to_world(hit)
         Impact.emit(ray_end, -vector)
 
-        # print("RAILGUN COLOR", modifier.color)
-        self.ray = Ray(ray_start, ray_end, width=1, color=self.colors[modifier.color])
+        self.rays.append(Ray(ray_start, ray_end, width=1, color=self.colors[modifier.color]))
+        # print("ADDED RAY", self.rays[-1])
+
+        shot_angle = vector.angle
+        if not (math.isnan(normal.x) or math.isnan(normal.y)):
+            normal_angle = normal.angle
+            normal_plus_90 = normal_angle + (math.pi / 2)
+            delta = shot_angle - normal_plus_90
+            bounce_angle = shot_angle - (delta * 2)
+
+            # fudge the hit away from the wall slightly
+            # we don't want the second railgun shot to spawn
+            # inside the wall
+            fudge = Vec2d(0.01, 0).rotated(normal_angle)
+            hit += fudge
+        else:
+            # argh.  give 'em *something*.
+            # (tbh I think this usually happens when calculating the *second* railshot)
+            bounce_angle = shot_angle + random.randrange(-45, 45) * ((2 * math.pi) / 360)
+            fudge = 0
+
+        bounce_vector = Vec2d(1, 0).rotated(bounce_angle)
+
+        # print("railgun shot:")
+        # print(f"    start point {start_point}")
+        # print(f"          fudge {fudge}")
+        # print(f"            hit {hit}")
+        # print(f"     shot angle {shot_angle}")
+        # print(f"   bounce angle {bounce_angle}")
+        # print(f"  bounce vector {bounce_vector}")
+
+        return hit, bounce_vector
+
+    def _fire(self, shooter, vector, modifier):
+        super()._fire(shooter, vector, modifier)
+
+        # TODO
+        # robots can't fire railguns yet
+        assert shooter is player
+
+        offset = reticle.offset.normalized() * player.radius
+        start_point = shooter.position + offset
+
+        for i in range(modifier.bounces + 1):
+            hit, bounce_vector = self.fire_railgun_ray(start_point, shooter, vector, modifier)
+            start_point = hit
+            vector = bounce_vector
+
         self.growth = 1000
+
         pyglet.clock.schedule_once(self.die, 0.6)
 
     def on_update(self, dt):
-        self.ray.width *= self.growth ** dt
-        c = self.ray.color
-        self.ray.color = (*c[:3], c[3] - 1.2 * dt)
+        for ray in self.rays:
+            ray.width *= self.growth ** dt
+            c = ray.color
+            ray.color = (*c[:3], c[3] - 1.2 * dt)
 
     def die(self, dt):
         self.close()
 
     def close(self):
         super().close()
-        self.ray.delete()
-        self.ray = None
+        for ray in self.rays:
+            ray.delete()
+        self.rays.clear()
 
 
 
@@ -1100,18 +1191,23 @@ class Weapon:
 
     def __repr__(self):
         s = f'<Weapon "{self.name}"'
-        for attr, default in (
-            ("bounces",0),
-            ("cls",Bullet),
-            ("color",BulletColor.BULLET_COLOR_WHITE),
-            ("cooldown_multiplier",1),
-            ("count",1),
-            ("damage_multiplier", 1),
-            ("shape",BulletShape.BULLET_SHAPE_NORMAL),
-            ("speed",1),
+        for attr, default, format in (
+            ("bounces",0,''),
+            ("cls",Bullet,''),
+            ("color",BulletColor.BULLET_COLOR_WHITE,''),
+            ("cooldown_multiplier",1,'1.3'),
+            ("count",1,''),
+            ("damage_multiplier", 1,'1.3'),
+            ("shape",BulletShape.BULLET_SHAPE_NORMAL,''),
+            ("speed",1,'1.3'),
             ):
             value = getattr(self, attr)
             if value != default:
+                if format:
+                    try:
+                        value = f"{value:{format}}"
+                    except ValueError:
+                        pass
                 s += f" {attr}={value}"
         s += ">"
         return s
@@ -1137,6 +1233,8 @@ def bullet_collision(entity, arbiter):
     bullet_shape = arbiter.shapes[0]
     entity_shape = arbiter.shapes[1]
     bullet = shape_to_bullet.get(bullet_shape)
+    if not bullet:
+        return
 
     # only handle the first collision for a bullet
     # (we tell pymunk to forget about the bullet,
@@ -1213,9 +1311,11 @@ for i in range(16):
         weapon = Weapon("normal")
     elif i == 15:
         weapon = Weapon("boss killer",
-            damage_multiplier=20,
+            cls=BossKillerBullet,
             cooldown_multiplier=5,
-            cls=BossKillerBullet)
+            damage_multiplier=1000,
+            speed=0.2,
+            )
     else:
         weapon = Weapon("")
         names = []
@@ -1438,7 +1538,7 @@ class Player:
 
 class Reticle:
     def __init__(self):
-        self.image = anchor_image_to_center(pyglet.image.load("gfx/reticle.png"))
+        self.image = load_centered_image("gfx/reticle.png")
         self.sprite = pyglet.sprite.Sprite(self.image, batch=level.bullet_batch, group=level.foreground_sprite_group)
         self.position = Vec2d(0, 0)
         # how many pixels movement onscreen map to one revolution
@@ -1707,6 +1807,9 @@ class Ray:
             ('c4f/dynamic', self._color_vals()),
         )
         self._recalculate()
+
+    def __repr__(self):
+        return f"<Ray {self._start} {self._end} {self._width} {self._color}>"
 
     def _color_vals(self):
         return [comp for _ in range(4) for comp in self._color]
