@@ -376,6 +376,58 @@ class Fans(Destroyable):
     SPRITE = 0, 2
 
 
+class Boss:
+    SPRITE = None
+
+    def __init__(self, position, angle=0):
+        self.position = position
+        self.angle = angle
+        self.create_body()
+        self.create_visuals()
+        pyglet.clock.schedule(self.update)
+
+    def create_body(self):
+        self.body = pymunk.Body(mass=pymunk.inf, moment=pymunk.inf, body_type=pymunk.Body.STATIC)
+        self.body.position = Vec2d(level.world_to_map(self.position))
+        self.body.angle = self.angle
+        self.shape = pymunk.Poly.create_box(self.body, (2, 2))
+        self.shape.collision_type = CollisionType.ROBOT
+        level.space.add(self.body, self.shape)
+        shape_to_robot[self.shape] = self
+
+    def create_visuals(self):
+        position = level.world_to_map(self.position)
+        self.sprite = BigSprite(self.position, self.SPRITE, angle=self.angle)
+        self.light = Light(position, (1.0, 0.1, 0.1), 300)
+        lighting.add_light(self.light)
+
+    def delete_visuals(self):
+        self.sprite.delete()
+        lighting.remove_light(self.light)
+
+    def update(self, dt):
+        to_player = (player.body.position - self.body.position)
+        self.body.angle = self.sprite.angle = to_player.angle
+
+    def on_damage(self, damage):
+        # TODO
+        print(f'Boss took {damage} damage')
+
+    def delete_body(self):
+        del shape_to_robot[self.shape]
+        level.space.remove(self.body, self.shape)
+
+    def delete(self):
+        pyglet.clock.unschedule(self.update)
+        self.delete_visuals()
+        self.delete_body()
+
+
+@big_object
+class Boss1(Boss):
+    SPRITE = (2, 0)
+
+
 class Game:
     def __init__(self):
         self.score = 0
@@ -1226,14 +1278,17 @@ class RailgunBullet(BulletBase):
                     long_enough_vector * modifier.damage_multiplier,
                     collision.point
                 )
-            if collision.shape.collision_type & CollisionType.WALL:
-                hit = start_point + long_enough_vector * collision.alpha
-                normal = collision.normal
-                break
 
+            stop = False
             robot = shape_to_robot.get(collision.shape)
             if robot:
                 robot.on_damage(self.damage)
+                stop = isinstance(robot, Boss)
+
+            if stop or collision.shape.collision_type == CollisionType.WALL:
+                hit = start_point + long_enough_vector * collision.alpha
+                normal = collision.normal
+                break
         else:
             return
 
@@ -2031,6 +2086,7 @@ class Robot:
             if fn():
                 return
         self.close()
+        light_flash(self.position, (1.0, 0.6, 0.5), 100, 0.2)
         Kaboom(level.map_to_world(self.position))
 
     def on_collision_wall(self, wall_shape):
@@ -2158,10 +2214,13 @@ player.on_player_moved()
 hud = HUD(viewport)
 
 
-def light_flash(position, color=(1.0, 1.0, 1.0), radius=200):
+def light_flash(position, color=(1.0, 1.0, 1.0), radius=200, duration=0.1):
     light = Light(position, color, radius)
     lighting.add_light(light)
-    pyglet.clock.schedule_once(lambda dt: lighting.remove_light(light), 0.1)
+    pyglet.clock.schedule_once(
+        lambda dt: lighting.remove_light(light),
+        duration
+    )
 
 
 def spawn_robot(map_pos):
@@ -2369,7 +2428,7 @@ MEAN_FIRE_INTERVAL = 3.0
 
 pyglet.clock.schedule_interval(diffuse_system.update, (1.0/30.0))
 pyglet.clock.schedule_interval(default_system.update, (1.0/30.0))
-pyglet.clock.set_fps_limit(None)
+pyglet.clock.set_fps_limit(30)
 
 
 pyglet.app.run()

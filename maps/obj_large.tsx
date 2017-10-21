@@ -13,7 +13,7 @@
  </tile>
  <tile id="2">
   <properties>
-   <property name="cls" value=""/>
+   <property name="cls" value="Boss1"/>
   </properties>
  </tile>
  <tile id="3">
