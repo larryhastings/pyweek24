@@ -28,7 +28,7 @@
  </tile>
  <tile id="5">
   <properties>
-   <property name="cls" value=""/>
+   <property name="cls" value="Boss3"/>
   </properties>
  </tile>
  <tile id="6">
@@ -43,7 +43,7 @@
  </tile>
  <tile id="8">
   <properties>
-   <property name="cls" value=""/>
+   <property name="cls" value="Boss4"/>
   </properties>
  </tile>
  <tile id="9">

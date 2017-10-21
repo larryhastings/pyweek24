@@ -2708,6 +2708,41 @@ class Boss2(Boss):
         RobotShootsConstantly(self)
 
 
+@tilemap_object
+class Boss3(Boss):
+    SPRITE = (1, 1)
+
+    weapon = Weapon("Bullets",
+        damage_multiplier=5,
+        cooldown_multiplier=0.4,
+        speed=1,
+        color=BulletColor.BULLET_COLOR_WHITE,
+        shape=BulletShape.BULLET_SHAPE_NORMAL,
+    )
+
+    def start(self):
+        super().start()
+        RobotShootsConstantly(self)
+
+
+@tilemap_object
+class Boss4(Boss):
+    SPRITE = (0, 2)
+
+    weapon = Weapon("Railgun",
+        damage_multiplier=5,
+        cooldown_multiplier=1,
+        speed=1,
+        color=BulletColor.BULLET_COLOR_RED,
+        shape=BulletShape.BULLET_SHAPE_NORMAL,
+        cls=RailgunBullet
+    )
+
+    def start(self):
+        super().start()
+        RobotShootsConstantly(self)
+
+
 
 class Ray:
     tex = pyglet.resource.texture('ray.png')
