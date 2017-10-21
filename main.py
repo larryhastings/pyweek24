@@ -45,6 +45,7 @@ import tmx
 from particles import Trail, Kaboom, Smoke, diffuse_system, Impact
 from maprenderer import MapRenderer, Viewport
 from lighting import LightRenderer, Light
+from hud import HUD
 
 
 key = pyglet.window.key
@@ -63,10 +64,8 @@ debug_viewport = Viewport(50, 50)
 
 PLAYER_GLOW = (0, 0.4, 0.5)
 PLAYER_FIRING = (1.0, 0.95, 0.7)
-player_light = Light((10, 10), PLAYER_GLOW)
 
 lighting = LightRenderer(viewport)
-lighting.add_light(player_light)
 
 
 def _clamp(c, other):
@@ -1438,11 +1437,13 @@ bullet_modifiers = [
 
 weapon_matrix = []
 
+BOSS_KILLER_ID = 15
+
 for i in range(16):
     if i == 0:
         weapon = Weapon("normal")
         player_level = 0
-    elif i == 15:
+    elif i == BOSS_KILLER_ID:
         weapon = Weapon("boss killer",
             cls=BossKillerBullet,
             cooldown_multiplier=5,
@@ -1547,10 +1548,15 @@ class Player:
 
     def toggle_weapon(self, bit):
         i = 1 << (bit - 1)
-        if self.weapon_index & i:
+        enabled = bool(self.weapon_index & i)
+        if enabled:
             index = self.weapon_index & ~i
         else:
             index = self.weapon_index | i
+
+        if BOSS_KILLER_ID in (index, self.weapon_index):
+            hud.set_boss_weapon(not enabled)
+        hud.set_weapon_enabled(bit - 1, not enabled)
 
         weapon = weapon_matrix[index]
         print(f"Weapon: {weapon}\n")
@@ -2090,7 +2096,10 @@ level.spawn_map_objects()
 reticle = Reticle()
 
 player = Player()
+player_light = Light(player.position, PLAYER_GLOW)
+lighting.add_light(player_light)
 player.on_player_moved()
+hud = HUD(viewport)
 
 
 def spawn_robot(map_pos):
@@ -2244,6 +2253,7 @@ def on_draw():
 
         default_system.draw()
         Ray.draw()
+    hud.draw()
     game.on_draw()
 
 
