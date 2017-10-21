@@ -405,7 +405,7 @@ class Destroyable(WideSprite):
     def on_damage(self, damage):
         pyglet.clock.unschedule(self.update)
 
-        d = damage / 100
+        d = damage / 60
         if self.scalev > 0:
             self.scalev += d * 2
         else:
@@ -1810,11 +1810,6 @@ def on_robot_bullet_hit_player(arbiter, space, data):
 
 
 
-class Powerup(IntEnum):
-        TWO_SHOT = 1
-        DAMAGE_BOOST = 2
-        BOUNCE = 4
-        RAILGUN = 8
 
 # each powerup gives you approximately 1.4x more power
 # but you also give something up
@@ -1840,8 +1835,8 @@ bullet_modifiers = [
         ),
     Weapon("railgun",
         cls=RailgunBullet,
-        cooldown_multiplier=1.2,
-        damage_multiplier=1.2,
+        cooldown_multiplier=1.3,
+        damage_multiplier=1.3,
         sound=rail_sound
         ),
     ]
