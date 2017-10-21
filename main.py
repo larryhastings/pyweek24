@@ -11,18 +11,22 @@ import random
 import sys
 import operator
 
-# built from source, removed "inline" from Group_kill_p in */group.h
+# built from source
 from lepton import default_system
 
 # pip3.6 install pyglet
+# currently 1.2.4
 import pyglet.resource
 import pyglet.window.key
 from pyglet import gl
 
-pyglet.resource.path = [".", "gfx", "gfx/kenney_roguelike/Spritesheet"]
+pyglet.resource.path = ["gfx"]
 pyglet.resource.reindex()
 
+
 # pip3.6 install pymunk
+# currently version 5.3.2
+#
 # GAAH, prevent pymunk from printing to stdout on import
 tmp = sys.stdout
 sys.stdout = io.StringIO()
@@ -38,10 +42,10 @@ vector_unit_x = Vec2d(1, 0)
 vector_unit_y = Vec2d(0, 1)
 
 # pip3.6 install tmx
+# currently 1.9.1
 import tmx
 
-#
-
+# local libraries
 from particles import Trail, Kaboom, Smoke, diffuse_system, Impact
 from maprenderer import MapRenderer, Viewport
 from lighting import LightRenderer, Light
@@ -61,10 +65,12 @@ window.set_icon(pyglet.image.load('gfx/icon32.png'), pyglet.image.load('gfx/icon
 viewport = Viewport(*window.get_size())
 debug_viewport = Viewport(50, 50)
 
+ENGINE_TICKS_IN_HERTZ = 120
 
 PLAYER_GLOW = (0, 0.4, 0.5)
 
 lighting = LightRenderer(viewport)
+
 
 
 def _clamp(c, other):
@@ -697,6 +703,11 @@ class Level:
             print(prefix + "}")
 
 
+        # spackling is shut off.
+        # chipmunk will collide on *both* walls,
+        # and that kills bouncy shots.
+        # with a higher hz and slower shots we're
+        # not having warping problems.
         if 0:
             blob_lists = []
             for blob in blobs:
@@ -878,8 +889,6 @@ class Level:
         return gid in self.collision_gids
 
 
-shape_to_bullet = {}
-
 
 
 class BulletColor(IntEnum):
@@ -895,7 +904,7 @@ class BulletShape(IntEnum):
 
 PLAYER_BASE_DAMAGE = 100
 
-
+shape_to_bullet = {}
 
 BulletClasses = []
 def add_to_bullet_classes(cls):
@@ -1106,12 +1115,9 @@ class Bullet(BulletBase):
         self.position = Vec2d(self.body.position)
         self.update_visuals()
 
-    # def on_update_velocity(self, body, gravity, damping, dt):
-    #     self.body.velocity = self.velocity
-
     def on_collision_wall(self, wall_shape):
         if (wall_shape != None) and (self.last_bounced_wall == wall_shape):
-            # I don't think it ever hits this, now
+            # I don't think this ever happens anymore
             return True
         if self.bounces:
             self.bounces -= 1
@@ -1417,10 +1423,6 @@ def on_player_bullet_hit_robot(arbiter, space, data):
 def on_robot_bullet_hit_player(arbiter, space, data):
     return bullet_collision("player", arbiter)
 
-
-# def on_player_hit_wall(arbiter, space, data):
-#     print("PLAYER HIT WALL", player.body.position)
-#     return True
 
 
 
@@ -1732,7 +1734,7 @@ class Player:
 
 class Reticle:
     def __init__(self):
-        self.image = load_centered_image("gfx/reticle.png")
+        self.image = load_centered_image("reticle.png")
         self.sprite = pyglet.sprite.Sprite(self.image, batch=level.bullet_batch, group=level.foreground_sprite_group)
         self.position = Vec2d(0, 0)
         # how many pixels movement onscreen map to one revolution
@@ -1780,8 +1782,6 @@ def is_moving(v):
 
 robots = set()
 shape_to_robot = {}
-
-
 
 class RobotBehaviour: # Dan, you're welcome, you don't know how much I want to omit the 'u'
     def __init__(self, robot):
@@ -1901,6 +1901,7 @@ class RobotChangesDirectionWhenItHitsAWall(RobotBehaviour):
     # two-stage process.
     #  stage 1: back out of the wall
     #  stage 2: once we're clear of the wall, switch to the next direction.
+    #
     # the trick: chipmunk tells us when we're colliding with a wall.
     # it *doesn't* tell us "oh you stopped colliding with that wall".
     # and afaik there's no direct "am I colliding?" test.
@@ -2037,6 +2038,7 @@ class Robot:
         for fn in self.on_collision_wall_callbacks:
             if fn(wall_shape):
                 return
+
 
 
 class Ray:
@@ -2181,6 +2183,9 @@ def spawn_robot(map_pos):
     else:
         RobotMovesStraightTowardsPlayer(robot)
 
+
+
+
 keypress_handlers = {}
 def keypress(key):
     def wrapper(fn):
@@ -2188,35 +2193,17 @@ def keypress(key):
         return fn
     return wrapper
 
-
 @keypress(key.ESCAPE)
 def key_escape(pressed):
     # print("ESC", pressed)
     pyglet.app.exit()
 
 @keypress(key.SPACE)
-def key_escape(pressed):
-    # print("SPACE", pressed)
+def key_space(pressed):
     if pressed:
         game.paused = not game.paused
         window.set_exclusive_mouse(not game.paused)
         player.on_pause_change()
-
-# @keypress(key.UP)
-# def key_up(pressed):
-#     print("UP", pressed)
-
-# @keypress(key.DOWN)
-# def key_down(pressed):
-#     print("DOWN", pressed)
-
-# @keypress(key.LEFT)
-# def key_left(pressed):
-#     print("LEFT", pressed)
-
-# @keypress(key.RIGHT)
-# def key_right(pressed):
-#     print("RIGHT", pressed)
 
 @keypress(key._1)
 def key_1(pressed):
@@ -2238,11 +2225,6 @@ def key_4(pressed):
     if pressed:
         player.toggle_weapon(4)
 
-
-
-@keypress(key.LCTRL)
-def key_lctrl(pressed):
-    print("LEFT CONTROL", pressed)
 
 
 key_remapper = {
@@ -2343,30 +2325,9 @@ def on_update(dt):
             cls.freelist.extend(cls.finishing_tick)
             cls.finishing_tick.clear()
 
-pyglet.clock.schedule_interval(on_update, 1/120.0)
 
 
-# win = pyglet.window.Window(resizable=True, visible=False)
-# win.clear()
-
-def on_resize(width, height):
-    """Setup 3D projection for window"""
-    gl.glViewport(0, 0, width, height)
-    gl.glMatrixMode(gl.GL_PROJECTION)
-    gl.glLoadIdentity()
-    gl.gluPerspective(70, 1.0*width/height, 0.1, 1000.0)
-    gl.glMatrixMode(gl.GL_MODELVIEW)
-    gl.glLoadIdentity()
-
-    viewport.w = width
-    viewport.h = height
-# window.on_resize = on_resize
-
-yrot = 0.0
-
-MEAN_FIRE_INTERVAL = 3.0
-
-
+pyglet.clock.schedule_interval(on_update, 1/ENGINE_TICKS_IN_HERTZ)
 pyglet.clock.schedule_interval(diffuse_system.update, (1.0/30.0))
 pyglet.clock.schedule_interval(default_system.update, (1.0/30.0))
 pyglet.clock.set_fps_limit(None)
