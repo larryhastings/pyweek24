@@ -1803,6 +1803,15 @@ def is_moving(v):
 robots = set()
 shape_to_robot = {}
 
+robot_base_weapon = Weapon("robot base weapon",
+    damage_multiplier=1,
+    cooldown_multiplier=1,
+    speed=1,
+    color=BulletColor.BULLET_COLOR_WHITE,
+    shape=BulletShape.BULLET_SHAPE_NORMAL,
+    cls=Bullet)
+
+
 class RobotBehaviour: # Dan, you're welcome, you don't know how much I want to omit the 'u'
     def __init__(self, robot):
         self.robot = robot
@@ -1822,13 +1831,11 @@ class RobotBehaviour: # Dan, you're welcome, you don't know how much I want to o
                 callbacks = getattr(robot, callback_name + "_callbacks")
                 callbacks.append(getattr(self, callback_name))
 
-    def on_update(self, dt):
-        pass
+    # for all callbacks, the rule is:
+    # if you return a True value, no further
+    # callbacks are called.
 
     def on_collision_wall(self, wall_shape):
-        pass
-
-    def on_update_velocity(self, body, gravity, damping, dt):
         pass
 
     def on_damage(self, damage):
@@ -1836,6 +1843,66 @@ class RobotBehaviour: # Dan, you're welcome, you don't know how much I want to o
 
     def on_died(self):
         pass
+
+    def on_update(self, dt):
+        pass
+
+    def on_update_velocity(self, body, gravity, damping, dt):
+        pass
+
+
+class RobotSleeps(RobotBehaviour):
+    # designed to be used in combination with other behaviours.
+    # add it *before* behaviours you want to put to sleep.
+    # for example:
+    #    r = Robot()
+    #    RobotShootsAtSquirrels(r)
+    #    RobotSleeps(r)
+    #    RobotMovesToShoreditch(r)
+    #
+    # here, the robot sleeping prevents it from moving to Shoreditch,
+    # but it shoots at squirrels even while it's otherwise asleep.
+    #
+    # sleep_interval and active_interval should be expressed in fractional
+    # seconds.  they can also be callables, in which case they'll be called
+    # each time to provide the next interval.
+    def __init__(self, robot, active_interval, sleep_interval):
+        super().__init__(robot)
+        self.robot = robot
+        if not callable(active_interval):
+            _active_interval = active_interval
+            active_interval = lambda: _active_interval
+        if not callable(sleep_interval):
+            _sleep_interval = sleep_interval
+            sleep_interval = lambda: _sleep_interval
+        self.active_interval = active_interval
+        self.sleep_interval = sleep_interval
+
+        self.t = 0
+        self.sleeping = False
+        self.next_t = self.active_interval()
+
+    def on_update(self, dt):
+        self.t += dt
+        if self.t > self.next_t:
+            self.sleeping = not self.sleeping
+            self.t -= self.next_t
+            if self.sleeping:
+                self.next_t = self.sleep_interval()
+                self.robot.velocity = self.robot.body.velocity = Vec2d(0, 0)
+            else:
+                self.next_t = self.active_interval()
+
+        if self.sleeping:
+            return True
+
+    def on_collision_wall(self, wall_shape):
+        if self.sleeping:
+            return True
+
+    def on_update_velocity(self, body, gravity, damping, dt):
+        if self.sleeping:
+            return True
 
 
 class RobotShootsConstantly(RobotBehaviour):
@@ -1937,11 +2004,11 @@ class RobotChangesDirectionWhenItHitsAWall(RobotBehaviour):
         self.still_colliding = False
 
 
-class RobotScuttlesBackAndForth(RobotChangesDirectionWhenItHitsAWall):
+class RobotMovesBackAndForth(RobotChangesDirectionWhenItHitsAWall):
     def __init__(self, robot, direction, speed=None):
         super().__init__(robot, [direction, direction.rotated(math.pi)], speed)
 
-class RobotWalksInASquare(RobotChangesDirectionWhenItHitsAWall):
+class RobotMovesInASquare(RobotChangesDirectionWhenItHitsAWall):
     def __init__(self, robot, direction, speed=None):
         super().__init__(robot, [
             direction,
@@ -1950,7 +2017,6 @@ class RobotWalksInASquare(RobotChangesDirectionWhenItHitsAWall):
             direction.rotated(math.pi * 3 / 2),
             ],
             speed)
-
 
 class RobotMovesStraightTowardsPlayer(RobotBehaviour):
     def __init__(self, robot):
@@ -1989,10 +2055,10 @@ class Robot:
         self.position = Vec2d(position)
         self.velocity = Vec2d(0, 0)
 
-        self.on_update_callbacks = []
         self.on_collision_wall_callbacks = []
         self.on_damage_callbacks = []
         self.on_died_callbacks = []
+        self.on_update_callbacks = []
         self.on_update_velocity_callbacks = []
 
         self.evolution = evolution
@@ -2288,6 +2354,7 @@ def spawn_robot(map_pos):
     # RobotMovesStraightTowardsPlayer(robot)
     # RobotScuttlesBackAndForth(robot, Vec2d(1, 0))
     # RobotMovesRandomly(robot)
+    RobotSleeps(robot, 0.5, 0.5)
 
     if random.randint(0, 2):
         RobotShootsOnlyWhenPlayerIsVisible(robot)
@@ -2295,7 +2362,7 @@ def spawn_robot(map_pos):
         RobotShootsConstantly(robot)
 
     if random.randint(0, 1):
-        RobotWalksInASquare(robot, Vec2d(1, 0))
+        RobotMovesInASquare(robot, Vec2d(1, 0))
     else:
         RobotMovesStraightTowardsPlayer(robot)
 
