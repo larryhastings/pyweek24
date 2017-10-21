@@ -108,19 +108,25 @@ class RobotSprite:
     """
 
     ROWS = COLS = 8
+    FILENAMES = 'obj_s'
 
     batch = pyglet.graphics.Batch()
-    diffuse_tex = pyglet.resource.texture('robots_diffuse.png')
-    emit_tex = pyglet.resource.texture('robots_emit.png')
-    flip_tex = pyglet.image.Texture(
-        diffuse_tex.width,
-        diffuse_tex.height,
-        gl.GL_TEXTURE_2D,
-        diffuse_tex.id
-    )
+
+    flips = {}
 
     @classmethod
     def load(cls):
+        cls.diffuse_tex = pyglet.resource.texture(f'{cls.FILENAMES}_diffuse.png')
+        cls.emit_tex = pyglet.resource.texture(f'{cls.FILENAMES}_emit.png')
+        cls.flip_tex = pyglet.image.Texture(
+            cls.diffuse_tex.width,
+            cls.diffuse_tex.height,
+            gl.GL_TEXTURE_2D,
+            cls.diffuse_tex.id
+        )
+
+        cls.flips[cls.flip_tex.id] = (cls.diffuse_tex, cls.emit_tex)
+
         cls.grid = pyglet.image.ImageGrid(
             image=cls.flip_tex,
             rows=cls.ROWS,
@@ -139,11 +145,14 @@ class RobotSprite:
 
     @classmethod
     def draw_emit(cls):
-        group = next(iter(cls.batch.top_groups), None)
-        if group:
-            group.texture = cls.emit_tex
-            cls.batch.draw()
-            group.texture = cls.diffuse_tex
+        revert = []
+        for group in cls.batch.top_groups:
+            diff, emit = cls.flips[group.texture.id]
+            group.texture = emit
+            revert.append((group, diff))
+        cls.batch.draw()
+        for group, diff in revert:
+            group.texture = diff
 
     def __init__(self, position, sprite_position):
         self.sprite = pyglet.sprite.Sprite(
@@ -208,13 +217,17 @@ class EnemyRobotSprite(PlayerRobotSprite):
     ROW = 2
 
 
-class BigRobotSprite(RobotSprite):
+class BigSprite(RobotSprite):
     ROWS = COLS = 4
+    FILENAMES = 'obj_l'
 
     SPRITE = 0, 0
 
-    def __init__(self, position):
-        super().__init__(position, self.SPRITE)
+
+class WideSprite(RobotSprite):
+    ROWS = 8
+    COLS = 4
+    FILENAMES = 'obj_w'
 
 
 OBJECT_TYPES = {}
@@ -225,9 +238,14 @@ def big_object(cls):
     OBJECT_TYPES[cls.__name__] = cls
 
 
+class BigRobotSprite(BigSprite):
+    def __init__(self, position):
+        super().__init__(position, self.SPRITE)
+
+
 @big_object
 class Fab(BigRobotSprite):
-    SPRITE = 0, 3
+    SPRITE = 0, 0
 
     def __init__(self, position):
         super().__init__(position)
@@ -310,9 +328,19 @@ class Level:
         self.objects = []
 
     def spawn_map_objects(self):
+        tilesets = [t for t in self.tiles.tilesets if 'object' in t.name.lower()]
+        types = {}
+        for tileset in tilesets:
+            for tile in tileset.tiles:
+                gid = tileset.firstgid + tile.id
+                props = {p.name: p.value for p in tile.properties}
+                if props.get('cls'):
+                    types[gid] = OBJECT_TYPES[props['cls']]
+
         for obj in self.tiles.layers[1].objects:
+            cls = types[obj.gid]
             self.objects.append(
-                OBJECT_TYPES[obj.type]((
+                cls((
                     obj.x + self.tilew,
                     self.tiles.height * self.tilew - obj.y + obj.height // 2
                 ))
@@ -322,7 +350,7 @@ class Level:
         # we should always save the tmx file
         # then export the json file
         # this function will detect that that's true
-        tmx_path = basename + ".tmx"
+        tmx_path = f'maps/{basename}.tmx'
         try:
             tmx_stat = os.stat(tmx_path)
         except FileNotFoundError:
@@ -1882,7 +1910,8 @@ class Ray:
 
 
 RobotSprite.load()
-BigRobotSprite.load()
+BigSprite.load()
+WideSprite.load()
 
 game = Game()
 # level = Level("prototype")
