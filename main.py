@@ -332,6 +332,8 @@ class Destroyable(WideSprite):
             v0 = Vec2d(0, 0)
             for pos in (-v, v0, v):
                 spawn_robot(self.body.position + v0)
+
+            level.destroy_one()
         else:
             pyglet.clock.schedule(self.update)
 
@@ -424,6 +426,7 @@ class Level:
         self.space.gravity = (0.0, 0.0)
         self.construct_collision_geometry()
         self.objects = []
+        self.destroyables = 0
 
     def spawn_map_objects(self):
         tilesets = [t for t in self.tiles.tilesets if 'object' in t.name.lower()]
@@ -438,6 +441,9 @@ class Level:
         for obj in self.tiles.layers[1].objects:
             cls = types[obj.gid]
 
+            if issubclass(cls, Destroyable):
+                self.destroyables += 1
+
             opos = Vec2d(obj.x, self.tiles.height * self.tilew - obj.y)
             off = Vec2d(obj.width / 2, obj.height / 2)
 
@@ -447,6 +453,12 @@ class Level:
             self.objects.append(
                 cls(center, angle=-angle)
             )
+
+    def destroy_one(self):
+        self.destroyables -= 1
+        if self.destroyables == 0:
+            Boss.instance.start()
+
 
     def load(self, basename):
         # we should always save the tmx file
