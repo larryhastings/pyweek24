@@ -311,7 +311,7 @@ class Destroyable(WideSprite):
         else:
             self.scalev -= d * 2
 
-        if abs(self.scalev) > 3:
+        if abs(self.scalev) > 2.2:
             self.delete()
 
             v = Vec2d(0.5, 0)
