@@ -433,17 +433,21 @@ class GameState(Enum):
     INVALID = 0
     NEW_GAME = 1
     LOAD_LEVEL = 2
-    PLAYING = 3
-    PAUSED = 4
-    LEVEL_COMPLETE = 5
-    GAME_OVER = 6
-    GAME_WON = 7
+    PRESHOW = 3
+    PLAYING = 4
+    PAUSED = 5
+    LEVEL_COMPLETE = 6
+    GAME_OVER = 7
+    GAME_WON = 8
+    CONFIRM_EXIT = 9
 
 class Game:
     press_space_to_continue_label = label('press space to continue', 24, 0.25)
     press_space_for_a_new_game_label = label('press space for a new game', 24, 0.25)
+    press_space_to_keep_playing_label = label('press space to keep playing', 24, 0.25)
 
     press_escape_to_exit_label = label('press escape to exit', 24, 0.2)
+    press_escape_to_really_exit_label = label('press escape to really exit', 24, 0.2)
 
     img = pyglet.resource.image('logo.png')
     img.anchor_x = img.width // 2
@@ -462,11 +466,10 @@ class Game:
         ],
 
         GameState.LOAD_LEVEL: [
-            label('placeholder', 64, 0.5),
-            label('will load message dynamically...', 32, 0.4),
-            label('soon ...', 32, 0.35),
-            press_space_to_continue_label,
-            press_escape_to_exit_label,
+            label('loading...', 64, 0.5),
+        ],
+
+        GameState.PRESHOW: [
         ],
 
         GameState.PLAYING: [],
@@ -478,7 +481,7 @@ class Game:
         ],
 
         GameState.LEVEL_COMPLETE: [
-            label('Level Complete', 64, 0.5),
+            label('Level Complete', 48, 0.5),
             press_space_to_continue_label,
             press_escape_to_exit_label,
         ],
@@ -495,6 +498,12 @@ class Game:
             press_space_for_a_new_game_label,
             press_escape_to_exit_label,
         ],
+
+        GameState.CONFIRM_EXIT: [
+            label('Are You Sure?', 64, 0.5),
+            press_space_to_keep_playing_label,
+            press_escape_to_really_exit_label,
+        ],
     }
 
     def __init__(self):
@@ -510,45 +519,90 @@ class Game:
         level.start()
 
     def transition_to(self, state):
+        # print(f"transitioning from {self.state} to {state}")
+
         global level
 
         # leaving this state
-        if self.state in (GameState.GAME_OVER, GameState.GAME_WON):
+        if (self.state in (GameState.GAME_OVER, GameState.GAME_WON)
+            or (self.state == GameState.CONFIRM_EXIT and state == GameState.NEW_GAME)):
             assert state == GameState.NEW_GAME
             self.close()
             global game
             game = Game()
             return
+        if state == GameState.CONFIRM_EXIT:
+            self.old_state = self.state
 
         self.state = state
-        print(f"transitioning from {self.state} to {state}")
 
         # transition to new state
+        explicit_labels = False
+        auto_transition_to = False
+
         if self.state == GameState.LOAD_LEVEL:
             level.close()
             self.level_counter += 1
             level = Level(f"level{self.level_counter}")
             self.is_final_level = not os.path.isfile(f"maps/level{self.level_counter + 1}.tmx")
             level.start()
+            auto_transition_to = GameState.PRESHOW
 
-        self.draw_labels = list(self.labels[self.state])
-        window.set_exclusive_mouse(self.state != GameState.PAUSED)
+        if self.state == GameState.PRESHOW:
+            try:
+                with open(f"maps/level{self.level_counter}.txt", "rt") as f:
+                    text = f.read()
+            except FileNotFoundError:
+                auto_transition_to = GameState.PLAYING
+                text = None
+
+            if text:
+                font_size = 48
+                advance = 0.1
+                cursor = 0.9
+                explicit_labels = []
+
+                for line in text.split("\n"):
+                    explicit_labels.append(label(line, font_size, cursor))
+                    cursor -= advance
+
+                    font_size = 18
+                    advance = 0.04
+                explicit_labels.append(self.press_space_to_continue_label)
+                explicit_labels.append(self.press_escape_to_exit_label)
+
+        if explicit_labels:
+            self.draw_labels = explicit_labels
+        else:
+            self.draw_labels = list(self.labels[self.state])
+        window.set_exclusive_mouse(self.paused())
 
         if player:
             player.on_game_state_change()
+
+        if auto_transition_to:
+            self.transition_to(auto_transition_to)
 
     def on_space(self):
 
         transition_map = {
             GameState.NEW_GAME: GameState.LOAD_LEVEL,
-            GameState.LOAD_LEVEL: GameState.PLAYING,
+            GameState.LOAD_LEVEL: GameState.PRESHOW,
+            GameState.PRESHOW: GameState.PLAYING,
             GameState.PLAYING: GameState.PAUSED,
             GameState.PAUSED: GameState.PLAYING,
             GameState.LEVEL_COMPLETE: GameState.LOAD_LEVEL,
             GameState.GAME_OVER: GameState.NEW_GAME,
             GameState.GAME_WON: GameState.NEW_GAME,
+            GameState.CONFIRM_EXIT: GameState.CONFIRM_EXIT,
         }
-        self.transition_to(transition_map[self.state])
+
+        if self.state == GameState.CONFIRM_EXIT:
+            print(f"cancelling state, going back to {self.old_state}")
+            state = self.old_state
+        else:
+            state = transition_map[self.state]
+        self.transition_to(state)
 
     paused_states = {
         GameState.NEW_GAME,
@@ -556,6 +610,7 @@ class Game:
         GameState.PAUSED,
         GameState.GAME_OVER,
         GameState.GAME_WON,
+        GameState.CONFIRM_EXIT,
         }
 
     def paused(self):
@@ -2031,6 +2086,8 @@ class Reticle:
         self.sprite = None
 
     def on_mouse_motion(self, x, y, dx, dy):
+        if game.paused():
+            return
         if not player.alive:
             return
         if dx:
@@ -2043,6 +2100,8 @@ class Reticle:
             self.on_player_moved()
 
     def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+        if game.paused():
+            return
         return self.on_mouse_motion(x, y, dx, dy)
 
     def on_player_moved(self):
@@ -2695,6 +2754,17 @@ def keypress(key):
 @keypress(key.ESCAPE)
 def key_escape(pressed):
     # print("ESC", pressed)
+    if not pressed:
+        return
+
+    if game.state != GameState.CONFIRM_EXIT:
+        game.transition_to(GameState.CONFIRM_EXIT)
+        return
+
+    if game.old_state != GameState.NEW_GAME:
+        game.transition_to(GameState.NEW_GAME)
+        return
+
     level.close()
     game.close()
     pyglet.app.exit()
