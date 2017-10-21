@@ -313,6 +313,7 @@ class Powerup(Collectable):
     def on_collision_player(self, player_shape):
         player.powerups_available |= (1<<(self.level + 1))
         self.delete()
+        level.maybe_level_is_finished()
 
 
 @tilemap_object
@@ -771,7 +772,10 @@ class Level:
 
     def on_robot_destroyed(self, robot):
         self.objects.discard(robot)
-        if not len(robots):
+        self.maybe_level_is_finished()
+
+    def maybe_level_is_finished(self):
+        if not (len(robots) or len(collectables)):
             if game.is_final_level:
                 game.transition_to(GameState.GAME_WON)
             else:
