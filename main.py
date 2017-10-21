@@ -1683,6 +1683,7 @@ class RobotBehaviour: # Dan, you're welcome, you don't know how much I want to o
             "on_damage",
             "on_died",
             "on_update",
+            "on_update_velocity",
             ):
             class_method = getattr(self.__class__, callback_name)
             base_class_method = getattr(RobotBehaviour, callback_name)
@@ -1694,6 +1695,9 @@ class RobotBehaviour: # Dan, you're welcome, you don't know how much I want to o
         pass
 
     def on_collision_wall(self, wall_shape):
+        pass
+
+    def on_update_velocity(self, body, gravity, damping, dt):
         pass
 
     def on_damage(self, damage):
@@ -1745,10 +1749,10 @@ class RobotShootsOnlyWhenPlayerIsVisible(RobotBehaviour):
 
 class RobotMovesRandomly(RobotBehaviour):
     countdown = 0
-    def __init__(self, robot):
+    def __init__(self, robot, speed=None):
         super().__init__(robot)
         # how many units per second
-        self.speed = (1 + (random.random() * 2.5))
+        self.speed = speed or (1 + (random.random() * 2.5))
 
     def pick_new_vector(self):
         # how many 1/120 tics should we move in this direction?
@@ -1765,6 +1769,56 @@ class RobotMovesRandomly(RobotBehaviour):
             self.countdown -= 1
             return
         self.pick_new_vector()
+
+class RobotChangesDirectionWhenItHitsAWall(RobotBehaviour):
+    def __init__(self, robot, directions, speed=None):
+        super().__init__(robot)
+        self.speed = speed or (1 + (random.random() * 2.5))
+        self.directions = [(Vec2d(d).normalized() * self.speed) for d in directions]
+        self.robot.velocity = self.robot.body.velocity = directions.pop(0)
+        self.backing_away_from_wall = None
+        self.still_colliding = False
+        self.next_direction = None
+
+    # two-stage process.
+    #  stage 1: back out of the wall
+    #  stage 2: once we're clear of the wall, switch to the next direction.
+    # the trick: chipmunk tells us when we're colliding with a wall.
+    # it *doesn't* tell us "oh you stopped colliding with that wall".
+    # and afaik there's no direct "am I colliding?" test.
+
+    def on_collision_wall(self, wall_shape):
+        self.still_colliding = True
+        if not self.backing_away_from_wall:
+            self.backing_away_from_wall = wall_shape
+            self.directions.append(self.robot.velocity)
+            self.next_direction = self.directions.pop(0)
+            self.robot.velocity = -self.robot.velocity
+            return
+
+    def on_update_velocity(self, body, gravity, damping, dt):
+        if not self.backing_away_from_wall:
+            return
+        if not self.still_colliding:
+            self.backing_away_from_wall = None
+            self.robot.velocity = self.next_direction
+            return
+        self.still_colliding = False
+
+
+class RobotScuttlesBackAndForth(RobotChangesDirectionWhenItHitsAWall):
+    def __init__(self, robot, direction, speed=None):
+        super().__init__(robot, [direction, direction.rotated(math.pi)], speed)
+
+class RobotWalksInASquare(RobotChangesDirectionWhenItHitsAWall):
+    def __init__(self, robot, direction, speed=None):
+        super().__init__(robot, [
+            direction,
+            direction.rotated(math.pi / 2),
+            direction.rotated(math.pi),
+            direction.rotated(math.pi * 3 / 2),
+            ],
+            speed)
 
 
 class RobotMovesStraightTowardsPlayer(RobotBehaviour):
@@ -1799,6 +1853,7 @@ class Robot:
         self.on_collision_wall_callbacks = []
         self.on_damage_callbacks = []
         self.on_died_callbacks = []
+        self.on_update_velocity_callbacks = []
 
         self.health = 100
         self.cooldown_range = (180, 240)
@@ -1819,6 +1874,9 @@ class Robot:
         robots.add(self)
 
     def on_update_velocity(self, body, gravity, damping, dt):
+        for fn in self.on_update_velocity_callbacks:
+            if fn(body, gravity, damping, dt):
+                return
         velocity = Vec2d(self.velocity)
         body.velocity = velocity
         self.body.velocity = velocity
@@ -1977,6 +2035,14 @@ reticle = Reticle()
 
 player = Player()
 player.on_player_moved()
+
+robot = Robot(player.position + Vec2d(5, -5))
+# RobotShootsConstantly(robot)
+RobotShootsOnlyWhenPlayerIsVisible(robot)
+# RobotMovesRandomly(robot)
+# RobotMovesStraightTowardsPlayer(robot)
+# RobotScuttlesBackAndForth(robot, Vec2d(1, 0))
+RobotWalksInASquare(robot, Vec2d(1, 0))
 
 keypress_handlers = {}
 def keypress(key):
