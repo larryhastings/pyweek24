@@ -163,6 +163,14 @@ class RobotSprite:
         self.position = position
 
     @property
+    def visible(self):
+        return self.sprite.visible
+
+    @visible.setter
+    def visible(self, v):
+        self.sprite.visible = v
+
+    @property
     def position(self):
         return self.sprite.position
 
@@ -1482,6 +1490,7 @@ for i in range(16):
 
 
 class Player:
+    MAX_HP = 400
 
     def __init__(self):
         self.cooldown_range = (10, 12)
@@ -1524,7 +1533,7 @@ class Player:
         self.cooldown = 0
         self.weapon_index = 0
 
-        self.health = 1000
+        self.health = self.MAX_HP
 
         self.sprite = PlayerRobotSprite(level.map_to_world(self.position))
 
@@ -1671,16 +1680,30 @@ class Player:
         #     raystart + ray * 300
         # )
 
-    def on_draw(self):
-        self.sprite.draw()
-
     def on_damage(self, damage):
         self.health -= damage
+        hud.set_health(max(self.health / self.MAX_HP, 0))
         if self.health <= 0:
             self.on_died()
 
+    def respawn(self):
+        self.alive = True
+        self.health = self.MAX_HP
+        hud.set_health(1.0)
+        self.body.position = level.start_pos
+        self.on_player_moved()
+        self.sprite.visible = True
+        reticle.sprite.visible = True
+        level.space.add(self.body, self.shape)
+
+    alive = True
+
     def on_died(self):
-        game.paused = True
+        self.alive = False
+        self.sprite.visible = False
+        reticle.sprite.visible = False
+        level.space.remove(self.body, self.shape)
+        pyglet.clock.schedule_once(lambda dt: self.respawn(), 1.5)
 
 
 class Reticle:
@@ -1698,6 +1721,8 @@ class Reticle:
         self.offset = Vec2d(0, self.magnitude)
 
     def on_mouse_motion(self, x, y, dx, dy):
+        if not player.alive:
+            return
         if dx:
             self.theta += dx * self.mouse_multiplier
             viewport.angle = self.theta - math.pi / 2

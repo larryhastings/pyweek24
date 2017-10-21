@@ -36,11 +36,22 @@ class HUD:
                 sprite.visible = False
             y += img.height + self.SPACING
 
-        self.bars = pyglet.image.ImageGrid(
+        self.bars = tuple(pyglet.image.ImageGrid(
             image=image,
             rows=2,
             columns=4,
-        ).get_texture_sequence()
+        ).get_texture_sequence())[:2]
+
+        self.power = tuple(
+            pyglet.sprite.Sprite(
+                bar,
+                self.viewport.w - self.SPACING - bar.width,
+                self.SPACING,
+                batch=self.batch,
+            )
+            for bar in self.bars
+        )
+        self.power[0].opacity = 64
 
     def set_weapon_visible(self, n, visible):
         self.weapons[n].visible = visible
@@ -62,6 +73,15 @@ class HUD:
             self.weapons[i].color = color
 
         self.weapons[4].visible = enabled
+
+    def set_health(self, health):
+        assert 0 <= health <= 1.0
+        img = self.bars[1]
+        sprite = self.power[1]
+
+        top = 20 + health * 100
+        region = img.get_region(0, 0, img.width, top)
+        sprite.image = region
 
     def draw(self):
         self.batch.draw()

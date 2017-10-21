@@ -54,7 +54,7 @@ class Trail:
         level = self.level
         dir = self.player.body.velocity
         l = dir.length
-        self.emitter.rate = l * 2
+        self.emitter.rate = l * 2 if self.player.health > 0 else 0
 
         if l:
             back = self.player.position - dir.normalized() * 0.1

@@ -30,8 +30,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="2.8284271"
-     inkscape:cx="143.02997"
-     inkscape:cy="169.92815"
+     inkscape:cx="144.62096"
+     inkscape:cy="113.35961"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -314,7 +314,7 @@
        id="text6443"
        y="1046.9155"
        x="79.487762"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.87669086px;line-height:125%;font-family:'URW Gothic L';-inkscape-font-specification:'URW Gothic L, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.87669086px;line-height:125%;font-family:'URW Gothic L';-inkscape-font-specification:'URW Gothic L, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;opacity:0.5;"
        xml:space="preserve"><tspan
          y="1046.9155"
          x="79.487762"
@@ -329,15 +329,16 @@
        width="100%"
        height="100%"
        style="fill:#4d4d4d" />
-    <use
-       style="color:#000000;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;opacity:1;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;fill:#65a9ff;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate"
-       height="100%"
-       width="100%"
-       transform="translate(186.87498,0.12500738)"
+    <g
+       transform="translate(63.87498,0.12500738)"
        id="use7009"
-       xlink:href="#g6461"
-       y="0"
-       x="0" />
+       style="color:#000000;clip-rule:nonzero;visibility:visible;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;fill:#65a9ff;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto">
+      <path
+         inkscape:connector-curvature="0"
+         id="path7059"
+         d="m 57.5708,931.83288 -50.7349,0 c 0,1.73424 0.0789,3.39904 0.19219,5.03465 l 50.54271,0 0,-5.03465 z m 0,8.65279 -50.19837,0 c 0.20962,1.7099 0.47225,3.37612 0.79544,4.98885 l 49.40293,0 0,-4.98885 z m 0,8.60701 -48.58346,0 c 0.44423,1.71349 0.96141,3.36727 1.51614,4.98884 l 47.06732,0 0,-4.98884 z m 0,8.60861 -45.73269,0 c 0.68209,1.70103 1.42149,3.35962 2.19679,4.98722 l 43.5359,0 0,-4.98722 z m 0,8.607 -41.7341,0 c 0.8835,1.68794 1.8193,3.34081 2.7627,4.98884 l 38.9714,0 0,-4.98884 z m 0,8.60698 -36.8814,0 c 0.9859,1.66203 1.9829,3.32161 2.9816,4.98886 l 33.8998,0 0,-4.98886 z m 0,8.60864 -31.759,0 c 0.9599,1.63633 1.898,3.30259 2.8241,4.98721 l 28.9349,0 0,-4.98721 z m 0,8.60699 -26.9944,0 c 0.8301,1.62404 1.6272,3.28609 2.389,4.98884 l 24.6054,0 0,-4.98884 z m 0,8.607 -23.0786,0 c 0.6417,1.6179 1.2469,3.2771 1.8018,4.9888 l 21.2768,0 0,-4.9888 z m 0,8.607 -20.2038,0 c 0.4393,1.6148 0.8336,3.2764 1.1799,4.9888 l 19.0239,0 0,-4.9888 z m 0,8.6086 -18.3833,0 c 0.2493,1.6196 0.4681,3.2734 0.6246,4.9888 l 17.7587,0 0,-4.9888 z m 0,8.607 -17.5078,0 c 0.071,1.4534 0.1121,2.9379 0.1121,4.4638 l 17.3956,0 0,-4.4638 z"
+         style="color:#000000;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;opacity:1;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate" />
+    </g>
     <text
        sodipodi:linespacing="125%"
        id="text6364-9"
