@@ -1,3 +1,4 @@
+import os.path
 from math import degrees
 
 import pyglet.graphics
@@ -62,12 +63,12 @@ class MapRenderer:
 
         self.light_objects = []
 
-        tileset = tmxfile.tilesets[0]
+        tileset = [t for t in tmxfile.tilesets if 'object' not in t.name.lower()][0]
         filename = tileset.image.source
         self.tilew = tileset.tilewidth
         self.tileh = tileset.tileheight
         self.tiles_tex = get_texture_sequence(
-            filename,
+            os.path.basename(filename),
             self.tilew,
             self.tileh,
             tileset.margin,

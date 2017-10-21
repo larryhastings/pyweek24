@@ -56,12 +56,12 @@ void main (void) {
 
 
 class Light:
-    attenuation = 200
     exponent = 2
 
-    def __init__(self, position=(0, 0), color=(1.0, 1.0, 1.0)):
+    def __init__(self, position=(0, 0), color=(1.0, 1.0, 1.0), radius=200):
         self.position = position
         self.color = color
+        self.radius = radius
 
 
 class LightRenderer:
@@ -143,7 +143,7 @@ class LightRenderer:
         c = 0
         for light in self.lights:
             lx, ly = light.position
-            maxdist = light.attenuation + vpradius
+            maxdist = light.radius + vpradius
             dx = vpx - lx * self.tilew
             dy = vpy - ly * self.tilew
             dist = sqrt(dx * dx + dy * dy)
@@ -162,10 +162,11 @@ class LightRenderer:
         volumes = []
         x, y = light.position
 
-        l = x - 6
-        r = x + 6
-        b = y - 6
-        t = y + 6
+        tr = ceil(light.radius / self.tilew)
+        l = x - tr
+        r = x + tr
+        b = y - tr
+        t = y + tr
 
         volumes.append(
             lightvolume.rect(
@@ -184,6 +185,6 @@ class LightRenderer:
         wy = y * self.tilew
         lighting_shader.uniformf('light_pos', wx, wy)
         lighting_shader.uniformf('light_color', *light.color)
-        lighting_shader.uniformf('attenuation', light.attenuation)
+        lighting_shader.uniformf('attenuation', light.radius)
         lighting_shader.uniformf('exponent', light.exponent)
         lightvolume.draw_light((wx, wy), volumes)

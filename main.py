@@ -108,19 +108,25 @@ class RobotSprite:
     """
 
     ROWS = COLS = 8
+    FILENAMES = 'obj_s'
 
     batch = pyglet.graphics.Batch()
-    diffuse_tex = pyglet.resource.texture('robots_diffuse.png')
-    emit_tex = pyglet.resource.texture('robots_emit.png')
-    flip_tex = pyglet.image.Texture(
-        diffuse_tex.width,
-        diffuse_tex.height,
-        gl.GL_TEXTURE_2D,
-        diffuse_tex.id
-    )
+
+    flips = {}
 
     @classmethod
     def load(cls):
+        cls.diffuse_tex = pyglet.resource.texture(f'{cls.FILENAMES}_diffuse.png')
+        cls.emit_tex = pyglet.resource.texture(f'{cls.FILENAMES}_emit.png')
+        cls.flip_tex = pyglet.image.Texture(
+            cls.diffuse_tex.width,
+            cls.diffuse_tex.height,
+            gl.GL_TEXTURE_2D,
+            cls.diffuse_tex.id
+        )
+
+        cls.flips[cls.flip_tex.id] = (cls.diffuse_tex, cls.emit_tex)
+
         cls.grid = pyglet.image.ImageGrid(
             image=cls.flip_tex,
             rows=cls.ROWS,
@@ -139,11 +145,14 @@ class RobotSprite:
 
     @classmethod
     def draw_emit(cls):
-        group = next(iter(cls.batch.top_groups), None)
-        if group:
-            group.texture = cls.emit_tex
-            cls.batch.draw()
-            group.texture = cls.diffuse_tex
+        revert = []
+        for group in cls.batch.top_groups:
+            diff, emit = cls.flips[group.texture.id]
+            group.texture = emit
+            revert.append((group, diff))
+        cls.batch.draw()
+        for group, diff in revert:
+            group.texture = diff
 
     def __init__(self, position, sprite_position):
         self.sprite = pyglet.sprite.Sprite(
@@ -208,13 +217,17 @@ class EnemyRobotSprite(PlayerRobotSprite):
     ROW = 2
 
 
-class BigRobotSprite(RobotSprite):
+class BigSprite(RobotSprite):
     ROWS = COLS = 4
+    FILENAMES = 'obj_l'
 
     SPRITE = 0, 0
 
-    def __init__(self, position):
-        super().__init__(position, self.SPRITE)
+
+class WideSprite(RobotSprite):
+    ROWS = 8
+    COLS = 4
+    FILENAMES = 'obj_w'
 
 
 OBJECT_TYPES = {}
@@ -225,9 +238,14 @@ def big_object(cls):
     OBJECT_TYPES[cls.__name__] = cls
 
 
+class BigRobotSprite(BigSprite):
+    def __init__(self, position):
+        super().__init__(position, self.SPRITE)
+
+
 @big_object
 class Fab(BigRobotSprite):
-    SPRITE = 0, 3
+    SPRITE = 0, 0
 
     def __init__(self, position):
         super().__init__(position)
@@ -310,9 +328,19 @@ class Level:
         self.objects = []
 
     def spawn_map_objects(self):
+        tilesets = [t for t in self.tiles.tilesets if 'object' in t.name.lower()]
+        types = {}
+        for tileset in tilesets:
+            for tile in tileset.tiles:
+                gid = tileset.firstgid + tile.id
+                props = {p.name: p.value for p in tile.properties}
+                if props.get('cls'):
+                    types[gid] = OBJECT_TYPES[props['cls']]
+
         for obj in self.tiles.layers[1].objects:
+            cls = types[obj.gid]
             self.objects.append(
-                OBJECT_TYPES[obj.type]((
+                cls((
                     obj.x + self.tilew,
                     self.tiles.height * self.tilew - obj.y + obj.height // 2
                 ))
@@ -322,7 +350,7 @@ class Level:
         # we should always save the tmx file
         # then export the json file
         # this function will detect that that's true
-        tmx_path = basename + ".tmx"
+        tmx_path = f'maps/{basename}.tmx'
         try:
             tmx_stat = os.stat(tmx_path)
         except FileNotFoundError:
@@ -336,6 +364,11 @@ class Level:
         self.collision_gids = self.maprenderer.collision_gids
         self.tilew = self.maprenderer.tilew
         lighting.tilew = self.tilew  # ugh, sorry
+
+        props = {p.name: p.value for p in self.tiles.properties}
+        if 'ambient' in props:
+            a = props['ambient']
+            lighting.ambient = (a.red, a.green, a.blue)
 
     def map_to_world(self, x, y=None):
         if y is None:
@@ -538,7 +571,7 @@ class Level:
         # above us--or below us.
         #
         # Minor optimization:
-        # If there are tiles above and below 
+        # If there are tiles above and below
         #            ___
         #          _[___]
         #         [_____] <--- like here for example
@@ -769,6 +802,7 @@ def add_to_bullet_classes(cls):
 
 class BulletBase:
     offset = Vec2d(0.0, 0.0)
+    light_radius = 200
 
     # in subclasses, this is a list of bullets that died during this tick.
     # we don't stick them immediately into the freelist,
@@ -937,7 +971,7 @@ class Bullet(BulletBase):
         self._fire_basics(shooter, vector, modifier)
 
     def create_visuals(self):
-        self.light = Light(self.position, self.light_color)
+        self.light = Light(self.position, self.light_color, self.light_radius)
         lighting.add_light(self.light)
         self.sprite = pyglet.sprite.Sprite(
             self.image,
@@ -949,7 +983,7 @@ class Bullet(BulletBase):
         self.light.position = self.position
 
         sprite_coord = level.map_to_world(self.position)
-        # move 
+        # move
         # sprite_coord -= Vec2d(64, 64)
         self.sprite.position = sprite_coord
 
@@ -982,8 +1016,9 @@ class Bullet(BulletBase):
 class BossKillerBullet(Bullet):
     finishing_tick = []
     freelist = []
-    radius = 0.7071067811865476 * 2
-    light_color = (0.85, 0.85, 1.0)
+    radius = 0.7071067811865476
+    light_color = (2, 2, 10.0)
+    light_radius = 400
     image = load_centered_image("white_circle.png")
 
     def __init__(self):
@@ -1309,6 +1344,7 @@ weapon_matrix = []
 for i in range(16):
     if i == 0:
         weapon = Weapon("normal")
+        player_level = 0
     elif i == 15:
         weapon = Weapon("boss killer",
             cls=BossKillerBullet,
@@ -1316,6 +1352,7 @@ for i in range(16):
             damage_multiplier=1000,
             speed=0.2,
             )
+        player_level = 3
     else:
         weapon = Weapon("")
         names = []
@@ -1335,9 +1372,15 @@ for i in range(16):
                     weapon.shape = delta.shape
                 weapon.speed *= delta.speed
 
+        player_level = 0
+        if 'triple' in names:
+            player_level = 1
+        if 'railgun' in names:
+            player_level = 2
         names.append("shot")
         weapon.name = " ".join(names)
 
+    weapon.player_level = player_level
     weapon_matrix.append(weapon)
 
 
@@ -1411,9 +1454,10 @@ class Player:
             index = self.weapon_index & ~i
         else:
             index = self.weapon_index | i
-        print(f"weapon changed from {self.weapon_index} to {index}")
-        print(weapon_matrix[index])
-        print()
+
+        weapon = weapon_matrix[index]
+        print(f"Weapon: {weapon}\n")
+        self.sprite.level = weapon.player_level
         self.weapon_index = index
 
     def calculate_speed(self):
@@ -1938,7 +1982,8 @@ class Ray:
 
 
 RobotSprite.load()
-BigRobotSprite.load()
+BigSprite.load()
+WideSprite.load()
 
 game = Game()
 # level = Level("prototype")
