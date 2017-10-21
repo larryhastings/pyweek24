@@ -154,11 +154,12 @@ class RobotSprite:
         for group, diff in revert:
             group.texture = diff
 
-    def __init__(self, position, sprite_position):
+    def __init__(self, position, sprite_position, angle=0):
         self.sprite = pyglet.sprite.Sprite(
             self.sprites[tuple(sprite_position)],
             batch=self.batch
         )
+        self.angle = angle
         self.position = position
 
     @property
@@ -239,16 +240,16 @@ def big_object(cls):
 
 
 class BigRobotSprite(BigSprite):
-    def __init__(self, position):
-        super().__init__(position, self.SPRITE)
+    def __init__(self, position, angle=0):
+        super().__init__(position, self.SPRITE, angle=angle)
 
 
 @big_object
 class Fab(BigRobotSprite):
     SPRITE = 0, 0
 
-    def __init__(self, position):
-        super().__init__(position)
+    def __init__(self, position, angle=0):
+        super().__init__(position, angle=angle)
 
         self.body = pymunk.Body(mass=pymunk.inf, moment=pymunk.inf, body_type=pymunk.Body.STATIC)
         self.body.position = Vec2d(level.world_to_map(self.position))
@@ -263,15 +264,14 @@ class Fab(BigRobotSprite):
 class Crate(RobotSprite):
     SPRITE = 5, 2
 
-    def __init__(self, position):
-        super().__init__(position, self.SPRITE)
+    def __init__(self, position, angle=0):
+        super().__init__(position, self.SPRITE, angle=angle)
 
         self.body = pymunk.Body(mass=20, moment=10, body_type=pymunk.Body.DYNAMIC)
         self.body.position = Vec2d(level.world_to_map(self.position))
         self.shape = pymunk.Poly.create_box(self.body, (1, 1))
         self.shape.collision_type = CollisionType.WALL
-        level.space.add(self.shape)
-        level.space.add(self.body)
+        level.space.add(self.body, self.shape)
         pyglet.clock.schedule(self.update)
 
     def update(self, dt):
@@ -281,10 +281,50 @@ class Crate(RobotSprite):
         self.body.velocity *= 0.05 ** dt
 
     def delete(self):
-        level.space.remove(self.body)
-        level.space.remove(self.shape)
+        level.space.remove(self.body, self.shape)
         super().delete()
 
+
+class Destroyable(WideSprite):
+    """Things that can be destroyed."""
+    def __init__(self, position, angle=0):
+        super().__init__(position, self.SPRITE, angle=angle)
+        self.create_body()
+
+    def create_body(self):
+        self.body = pymunk.Body(mass=pymunk.inf, moment=pymunk.inf, body_type=pymunk.Body.STATIC)
+        self.body.position = Vec2d(level.world_to_map(self.position))
+        self.body.position -= Vec2d(0, 0.5).rotated(self.angle)  # FIXME: Why??
+        self.body.angle = self.angle
+        self.shape = pymunk.Poly.create_box(self.body, (2, 1))
+        self.shape.collision_type = CollisionType.WALL
+        level.space.add(self.body, self.shape)
+
+    def on_shot(self):
+        robot = Robot(player.position + Vec2d(5, -5))
+        # RobotShootsConstantly(robot)
+        RobotShootsOnlyWhenPlayerIsVisible(robot)
+        # RobotMovesRandomly(robot)
+        RobotMovesStraightTowardsPlayer(robot)
+
+    def delete(self):
+        level.space.remove(self.body, self.shape)
+        super().delete()
+
+
+@big_object
+class GasTank(Destroyable):
+    SPRITE = 0, 0
+
+
+@big_object
+class Screen1(Destroyable):
+    SPRITE = 1, 1
+
+
+@big_object
+class Screen2(Destroyable):
+    SPRITE = 2, 0
 
 
 class Game:
@@ -335,15 +375,16 @@ class Level:
                 gid = tileset.firstgid + tile.id
                 props = {p.name: p.value for p in tile.properties}
                 if props.get('cls'):
+                    print(gid, props['cls'])
                     types[gid] = OBJECT_TYPES[props['cls']]
 
         for obj in self.tiles.layers[1].objects:
             cls = types[obj.gid]
+
+            ox = obj.x + self.tilew
+            oy = (self.tiles.height + 1) * self.tilew - obj.y
             self.objects.append(
-                cls((
-                    obj.x + self.tilew,
-                    self.tiles.height * self.tilew - obj.y + obj.height // 2
-                ))
+                cls((ox, oy), angle=math.radians(obj.rotation))
             )
 
     def load(self, basename):
@@ -368,7 +409,7 @@ class Level:
         props = {p.name: p.value for p in self.tiles.properties}
         if 'ambient' in props:
             a = props['ambient']
-            lighting.ambient = (a.red, a.green, a.blue)
+            lighting.ambient = (a.red / 255, a.green / 255, a.blue / 255)
 
     def map_to_world(self, x, y=None):
         if y is None:
@@ -2153,9 +2194,6 @@ def on_draw():
         default_system.draw()
         Ray.draw()
     game.on_draw()
-    # with debug_viewport:
-    #     glScalef(8.0, 8.0, 8.0)
-    #     level.space.debug_draw(level.draw_options)
 
 
 def on_update(dt):
