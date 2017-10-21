@@ -106,6 +106,7 @@ class CollisionType(IntEnum):
     PLAYER_BULLET = 4
     ROBOT = 8
     ROBOT_BULLET = 16
+    COLLECTABLE = 32
 
 
 
@@ -239,6 +240,41 @@ class PlayerRobotSprite(RobotSprite):
 class EnemyRobotSprite(PlayerRobotSprite):
     """Sprites for the enemies."""
     ROW = 2
+
+
+collectables = set()
+
+class Collectable(RobotSprite):
+    """Sprites for collectables."""
+    ROW = 2
+
+    def __init__(self, position, level=0):
+        super().__init__(position, level)
+
+        self.body = pymunk.Body(mass=pymunk.inf, moment=pymunk.inf, body_type=pymunk.Body.STATIC)
+        self.body.position = Vec2d(level.world_to_map(self.position))
+        self.shape = pymunk.Poly.create_box(self.body, (1, 1))
+        self.shape.collision_type = CollisionType.COLLECTABLE
+        level.space.add(self.body, self.shape)
+        pyglet.clock.schedule(self.update)
+        collectables.add(self)
+
+    def delete(self):
+        collectables.discard(self)
+        level.space.remove(self.body, self.shape)
+        super().delete()
+
+    def close(self):
+        self.delete()
+
+    def on_collision_player(self, player_shape):
+        pass
+
+
+class CollectablePowerup(Collectable):
+    def on_collision_player(self, player_shape):
+        player.powerups_available |= (1<<(self.level + 1))
+        self.delete()
 
 
 class BigSprite(RobotSprite):
@@ -642,6 +678,10 @@ class Level:
         global reticle
 
         hud = player = reticle = None
+
+        robots.clear()
+        bullets.clear()
+        collectables.clear()
 
         self.load(self.basename)
 
@@ -1086,6 +1126,7 @@ class Level:
             (CollisionType.ROBOT_BULLET,  CollisionType.PLAYER, on_robot_bullet_hit_player),
 
             (CollisionType.ROBOT,         CollisionType.WALL,   on_robot_hit_wall),
+            (CollisionType.PLAYER,        CollisionType.COLLECTABLE,   on_player_got_collectable),
             ):
             ch = self.space.add_collision_handler(int(type1), int(type2))
             ch.pre_solve = fn
@@ -1693,6 +1734,15 @@ def on_robot_hit_wall(arbiter, space, data):
     return True
 
 
+def on_player_got_collectable(arbiter, space, data):
+    player_shape = arbiter.shapes[0]
+    collectable_shape = arbiter.shapes[1]
+    collectable = shape_to_collectable.get(robot_shape)
+    if collectable:
+        collectable.on_collision_player(player_shape)
+    return True
+
+
 
 bullets = set()
 
@@ -1846,6 +1896,8 @@ class Player:
         # how many 1/120th of a second frames should it take to get to full speed
         self.acceleration_frames = 30
 
+        self.powerups_available = 3
+
         self.pause_pressed_keys = []
         self.pause_released_keys = []
         self.movement_keys = []
@@ -1899,15 +1951,19 @@ class Player:
 
     def toggle_weapon(self, bit):
         i = 1 << (bit - 1)
-        enabled = bool(self.weapon_index & i)
-        if enabled:
+        currently_enabled = bool(self.weapon_index & i)
+        if currently_enabled:
+            # disable
             index = self.weapon_index & ~i
         else:
+            # enable
+            if not (self.powerups_available & i):
+                return
             index = self.weapon_index | i
 
         if BOSS_KILLER_ID in (index, self.weapon_index):
-            hud.set_boss_weapon(not enabled)
-        hud.set_weapon_enabled(bit - 1, not enabled)
+            hud.set_boss_weapon(not currently_enabled)
+        hud.set_weapon_enabled(bit - 1, not currently_enabled)
 
         weapon = weapon_matrix[index]
         # print(f"Weapon: {weapon}\n")
