@@ -100,6 +100,10 @@ class LightRenderer:
         """Remove a light."""
         self.lights.discard(light)
 
+    def clear_lights(self):
+        """Remove all lights."""
+        self.lights.clear()
+
     def is_fbo_valid(self):
         """Return True if the FBO still matches the size of the viewport."""
         return (

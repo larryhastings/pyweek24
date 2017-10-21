@@ -7,13 +7,14 @@ from pyglet import gl
 class HUD:
     SPACING = 5
 
+    image = pyglet.resource.image(f'hud.png')
+
     def __init__(self, viewport):
         self.viewport = viewport
         self.batch = pyglet.graphics.Batch()
 
-        image = pyglet.resource.image(f'hud.png')
         self.tiles = pyglet.image.ImageGrid(
-            image=image,
+            image=self.image,
             rows=4,
             columns=4,
         ).get_texture_sequence()
@@ -37,7 +38,7 @@ class HUD:
             y += img.height + self.SPACING
 
         self.bars = tuple(pyglet.image.ImageGrid(
-            image=image,
+            image=self.image,
             rows=2,
             columns=4,
         ).get_texture_sequence())[:2]
@@ -53,10 +54,13 @@ class HUD:
         )
         self.power[0].opacity = 64
 
-        self.life_img = image.get_region(128, 0, 64, 20)
+        self.life_img = self.image.get_region(128, 0, 64, 20)
 
         self.lives = []
         self.set_lives(3)
+
+    def close(self):
+        pass
 
     def set_weapon_visible(self, n, visible):
         self.weapons[n].visible = visible
