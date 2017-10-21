@@ -460,7 +460,6 @@ class Level:
         if self.destroyables == 0:
             Boss.instance.start()
 
-
     def load(self, basename):
         # we should always save the tmx file
         # then export the json file
@@ -2190,7 +2189,7 @@ class Boss(Robot):
         position = level.world_to_map(self.position)
         self.sprite = BigSprite(self.position, self.SPRITE, angle=self.angle)
         self.sprite.sprite.color = (0,) * 3
-        self.light = Light(position, (1.0, 0.1, 0.1), 300)
+        self.light = Light(position, (0.5, 0.0, 0.0), 300)
 
     def delete_visuals(self):
         self.sprite.delete()
@@ -2206,6 +2205,7 @@ class Boss(Robot):
     def update(self, dt):
         to_player = (player.body.position - self.body.position)
         self.body.angle = self.sprite.angle = to_player.angle
+        self.light.position = self.body.position
 
     def on_damage(self, damage):
         # TODO
