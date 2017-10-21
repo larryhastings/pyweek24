@@ -333,6 +333,8 @@ class Destroyable(WideSprite):
             v0 = Vec2d(0, 0)
             for pos in (-v, v0, v):
                 spawn_robot(self.body.position + v0)
+
+            level.destroy_one()
         else:
             pyglet.clock.schedule(self.update)
 
@@ -425,6 +427,7 @@ class Level:
         self.space.gravity = (0.0, 0.0)
         self.construct_collision_geometry()
         self.objects = []
+        self.destroyables = 0
 
     def spawn_map_objects(self):
         tilesets = [t for t in self.tiles.tilesets if 'object' in t.name.lower()]
@@ -439,6 +442,9 @@ class Level:
         for obj in self.tiles.layers[1].objects:
             cls = types[obj.gid]
 
+            if issubclass(cls, Destroyable):
+                self.destroyables += 1
+
             opos = Vec2d(obj.x, self.tiles.height * self.tilew - obj.y)
             off = Vec2d(obj.width / 2, obj.height / 2)
 
@@ -448,6 +454,12 @@ class Level:
             self.objects.append(
                 cls(center, angle=-angle)
             )
+
+    def destroy_one(self):
+        self.destroyables -= 1
+        if self.destroyables == 0:
+            Boss.instance.start()
+
 
     def load(self, basename):
         # we should always save the tmx file
@@ -2154,10 +2166,12 @@ class Boss(Robot):
     SPRITE = None
     radius = 1.2
 
+    started = False
+
     def __init__(self, position, angle=0):
         self.angle = angle
         super().__init__(position)
-        self.start()
+        Boss.instance = self
 
     def create_body(self):
         self.body = pymunk.Body(mass=pymunk.inf, moment=pymunk.inf, body_type=pymunk.Body.STATIC)
@@ -2175,12 +2189,19 @@ class Boss(Robot):
     def create_visuals(self):
         position = level.world_to_map(self.position)
         self.sprite = BigSprite(self.position, self.SPRITE, angle=self.angle)
+        self.sprite.sprite.color = (0,) * 3
         self.light = Light(position, (1.0, 0.1, 0.1), 300)
-        lighting.add_light(self.light)
 
     def delete_visuals(self):
         self.sprite.delete()
         lighting.remove_light(self.light)
+
+    def start(self):
+        self.started = True
+        self.sprite.sprite.color = (255,) * 3
+        lighting.add_light(self.light)
+        pyglet.clock.schedule(self.update)
+        RobotShootsConstantly(self)
 
     def update(self, dt):
         to_player = (player.body.position - self.body.position)
@@ -2188,6 +2209,8 @@ class Boss(Robot):
 
     def on_damage(self, damage):
         # TODO
+        if not self.started:
+            return
         print(f'Boss took {damage} damage')
 
     def delete(self):
@@ -2208,10 +2231,6 @@ class Boss1(Boss):
         shape=BulletShape.BULLET_SHAPE_NORMAL,
         cls=Rocket
     )
-
-    def start(self):
-        pyglet.clock.schedule(self.update)
-        RobotShootsConstantly(self)
 
 
 class Ray:
