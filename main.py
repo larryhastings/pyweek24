@@ -20,7 +20,8 @@ import pyglet.resource
 import pyglet.window.key
 from pyglet import gl
 
-pyglet.resource.path = ["gfx", "fonts"]
+pyglet.options['audio'] = ('openal', 'directsound', 'silent')
+pyglet.resource.path = ["gfx", "fonts", "sfx"]
 pyglet.resource.reindex()
 
 
@@ -70,6 +71,13 @@ ENGINE_TICKS_IN_HERTZ = 120
 PLAYER_GLOW = (0, 0.4, 0.5)
 
 lighting = LightRenderer(viewport)
+
+
+impact_sound = pyglet.resource.media('impact.wav', streaming=False)
+rail_sound = pyglet.resource.media('rail.wav', streaming=False)
+default_sound = laser_sound = pyglet.resource.media('laser.wav', streaming=False)
+laser2_sound = pyglet.resource.media('laser2.wav', streaming=False)
+bkill_sound = pyglet.resource.media('boss_killer.wav', streaming=False)
 
 
 
@@ -1403,8 +1411,8 @@ class BossKillerBullet(Bullet):
 
         if not player and reticle:
             self.close()
-            return            
-                
+            return
+
 
         self.t += dt
         if self.t > self.fire_t:
@@ -1606,6 +1614,7 @@ class Weapon:
             damage_multiplier=1,
             shape=BulletShape.BULLET_SHAPE_NORMAL,
             speed=1,
+            sound=default_sound
             ):
         self.name = name
         self.bounces = bounces
@@ -1616,6 +1625,7 @@ class Weapon:
         self.damage_multiplier = damage_multiplier
         self.shape = shape
         self.speed = speed
+        self.sound = sound
 
     def __repr__(self):
         s = f'<Weapon "{self.name}"'
@@ -1641,6 +1651,8 @@ class Weapon:
         return s
 
     def fire(self, shooter, vector):
+        player = self.sound.play()
+        player.volume = 0.5
         return self.cls.fire(shooter, vector, self)
 
 
@@ -1709,6 +1721,7 @@ bullet_modifiers = [
         damage_multiplier=0.4,
         shape=BulletShape.BULLET_SHAPE_TINY,
         speed=1.3,
+        sound=laser2_sound,
         ),
     Weapon("boosted",
         color=BulletColor.BULLET_COLOR_RED,
@@ -1725,6 +1738,7 @@ bullet_modifiers = [
         cls=RailgunBullet,
         cooldown_multiplier=1.2,
         damage_multiplier=1.2,
+        sound=rail_sound
         ),
     ]
 
@@ -1742,11 +1756,13 @@ for i in range(16):
             cooldown_multiplier=5,
             damage_multiplier=1000,
             speed=0.2,
+            sound=bkill_sound
             )
         player_level = 3
     else:
         weapon = Weapon("")
         names = []
+        sound = default_sound
         for bit, delta in enumerate(bullet_modifiers):
             if i & (1<<bit):
                 names.append(delta.name)
@@ -1762,6 +1778,10 @@ for i in range(16):
                 if delta.shape != BulletShape.BULLET_SHAPE_NORMAL:
                     weapon.shape = delta.shape
                 weapon.speed *= delta.speed
+                if delta.sound is not default_sound:
+                    sound = delta.sound
+
+        weapon.sound = sound
 
         player_level = 0
         if 'triple' in names:
@@ -2425,7 +2445,7 @@ class Boss(Robot):
     radius = 1.2
     instance = None
 
-    health = 800 
+    health = 800
 
     started = False
 
