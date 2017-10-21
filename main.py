@@ -621,6 +621,7 @@ class Level:
         except FileNotFoundError:
             sys.exit(f"Couldn't find tmx for basename {basename}!")
 
+        lighting.clear()
         self.tiles = tmx.TileMap.load(tmx_path)
         self.maprenderer = MapRenderer(self.tiles)
         lighting.shadow_casters = self.maprenderer.shadow_casters
@@ -1758,8 +1759,6 @@ class Player:
 
         self.light = Light(self.position, PLAYER_GLOW)
         lighting.add_light(self.light)
-
-        # self.ray = Ray(self.sprite.position, self.sprite.position, width=3, color=(1.0, 0.0, 0.0, 0.5))
 
     def close(self):
         lighting.remove_light(self.light)
