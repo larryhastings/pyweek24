@@ -382,58 +382,6 @@ class Fans(Destroyable):
     SPRITE = 0, 2
 
 
-class Boss:
-    SPRITE = None
-
-    def __init__(self, position, angle=0):
-        self.position = position
-        self.angle = angle
-        self.create_body()
-        self.create_visuals()
-        pyglet.clock.schedule(self.update)
-
-    def create_body(self):
-        self.body = pymunk.Body(mass=pymunk.inf, moment=pymunk.inf, body_type=pymunk.Body.STATIC)
-        self.body.position = Vec2d(level.world_to_map(self.position))
-        self.body.angle = self.angle
-        self.shape = pymunk.Poly.create_box(self.body, (2, 2))
-        self.shape.collision_type = CollisionType.ROBOT
-        level.space.add(self.body, self.shape)
-        shape_to_robot[self.shape] = self
-
-    def create_visuals(self):
-        position = level.world_to_map(self.position)
-        self.sprite = BigSprite(self.position, self.SPRITE, angle=self.angle)
-        self.light = Light(position, (1.0, 0.1, 0.1), 300)
-        lighting.add_light(self.light)
-
-    def delete_visuals(self):
-        self.sprite.delete()
-        lighting.remove_light(self.light)
-
-    def update(self, dt):
-        to_player = (player.body.position - self.body.position)
-        self.body.angle = self.sprite.angle = to_player.angle
-
-    def on_damage(self, damage):
-        # TODO
-        print(f'Boss took {damage} damage')
-
-    def delete_body(self):
-        del shape_to_robot[self.shape]
-        level.space.remove(self.body, self.shape)
-
-    def delete(self):
-        pyglet.clock.unschedule(self.update)
-        self.delete_visuals()
-        self.delete_body()
-
-
-@big_object
-class Boss1(Boss):
-    SPRITE = (2, 0)
-
-
 class Game:
     def __init__(self):
         self.score = 0
@@ -1237,17 +1185,34 @@ class Rocket(Bullet):
         self.rocket = RobotSprite(sprite_coord, self.SPRITE)
         self.smoke = Smoke(sprite_coord)
         self.rocket.angle = self.velocity.get_angle()
+        self.light = Light(self.position, (0.6, 0.4, 0), 50)
+        lighting.add_light(self.light)
 
     def update_visuals(self):
         sprite_coord = level.map_to_world(self.position)
         self.rocket.position = sprite_coord
         self.smoke.set_world_position(sprite_coord, self.velocity)
         self.rocket.angle = self.velocity.get_angle()
+        self.light.position = self.position - self.velocity * 0.06
 
     def destroy_visuals(self):
         self.rocket.delete()
         self.rocket = None
         self.smoke.destroy()
+        lighting.remove_light(self.light)
+
+    def on_update(self, dt):
+        to_player = (player.body.position - self.body.position).normalized()
+
+        speed = self.body.velocity.length
+        u = self.body.velocity.normalized()
+        v = to_player * u.length
+        frac = 0.1 ** dt
+
+        newv = (u * frac + v * (1.0 - frac)).normalized() * speed
+        self.velocity = self.body.velocity = newv
+
+        super().on_update(dt)
 
 
 @add_to_bullet_classes
@@ -1872,14 +1837,6 @@ class RobotBehaviour: # Dan, you're welcome, you don't know how much I want to o
     def on_died(self):
         pass
 
-robot_base_weapon = Weapon("robot base weapon",
-    damage_multiplier=1,
-    cooldown_multiplier=1,
-    speed=1,
-    color=BulletColor.BULLET_COLOR_WHITE,
-    shape=BulletShape.BULLET_SHAPE_NORMAL,
-    cls=Bullet)
-
 
 class RobotShootsConstantly(RobotBehaviour):
     cooldown = 0
@@ -1894,7 +1851,7 @@ class RobotShootsConstantly(RobotBehaviour):
             return
 
         vector_to_player = Vec2d(player.position) - self.robot.position
-        bullet = robot_base_weapon.fire(self.robot, vector_to_player)
+        bullet = self.robot.weapon.fire(self.robot, vector_to_player)
         self.cooldown = bullet.cooldown
 
 
@@ -1916,7 +1873,7 @@ class RobotShootsOnlyWhenPlayerIsVisible(RobotBehaviour):
             level.robot_bullet_collision_filter)
         if collision and collision.shape == player.shape:
             vector_to_player = Vec2d(player.position) - self.robot.position
-            bullet = robot_base_weapon.fire(self.robot, vector_to_player)
+            bullet = self.robot.weapon.fire(self.robot, vector_to_player)
             self.cooldown = bullet.cooldown
 
 
@@ -2013,9 +1970,18 @@ class RobotMovesStraightTowardsPlayer(RobotBehaviour):
 
 
 class Robot:
+    weapon = Weapon("robot base weapon",
+        damage_multiplier=1,
+        cooldown_multiplier=1,
+        speed=1,
+        color=BulletColor.BULLET_COLOR_WHITE,
+        shape=BulletShape.BULLET_SHAPE_NORMAL,
+        cls=Bullet
+    )
+    radius = 0.7071067811865476
+
     def __init__(self, position, evolution=0):
         # used only to calculate starting position of bullet
-        self.radius = 0.7071067811865476
         self.bullet_collision_filter = level.robot_bullet_collision_filter
         self.bullet_collision_type = CollisionType.ROBOT_BULLET
         self.bullet_speed = 15
@@ -2029,12 +1995,28 @@ class Robot:
         self.on_died_callbacks = []
         self.on_update_velocity_callbacks = []
 
+        self.evolution = evolution
         self.health = 100 * (evolution + 1)
         self.cooldown_range = (180, 240)
         self.cooldown = 0
 
-        self.sprite = EnemyRobotSprite(level.map_to_world(position), evolution)
+        self.create_visuals()
+        self.create_body()
 
+        robots.add(self)
+
+    def create_visuals(self):
+        self.sprite = EnemyRobotSprite(
+            level.map_to_world(self.position),
+            self.evolution
+        )
+
+    def delete_visuals(self):
+        if self.sprite:
+            self.sprite.delete()
+            self.sprite = None
+
+    def create_body(self):
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.body.position = Vec2d(self.position)
         self.body.velocity_func = self.on_update_velocity
@@ -2045,7 +2027,9 @@ class Robot:
         self.shape.filter = level.robot_collision_filter
         shape_to_robot[self.shape] = self
         level.space.add(self.body, self.shape)
-        robots.add(self)
+
+    def delete_body(self):
+        level.space.remove(self.body, self.shape)
 
     def on_update_velocity(self, body, gravity, damping, dt):
         for fn in self.on_update_velocity_callbacks:
@@ -2075,18 +2059,21 @@ class Robot:
             if fn(dt):
                 return
 
-    def close(self):
+    def delete(self):
         robots.discard(self)
-        level.space.remove(self.body, self.shape)
-        if self.sprite:
-            self.sprite.delete()
-            self.sprite = None
+        self.delete_body()
+        self.delete_visuals()
+
+    close = delete
 
     def on_died(self):
         for fn in self.on_died_callbacks:
             if fn():
                 return
-        self.close()
+        self.create_death_visuals()
+        self.delete()
+
+    def create_death_visuals(self):
         light_flash(self.position, (1.0, 0.6, 0.5), 100, 0.2)
         Kaboom(level.map_to_world(self.position))
 
@@ -2095,6 +2082,69 @@ class Robot:
             if fn(wall_shape):
                 return
 
+
+class Boss(Robot):
+    SPRITE = None
+    radius = 1.2
+
+    def __init__(self, position, angle=0):
+        self.angle = angle
+        super().__init__(position)
+        self.start()
+
+    def create_body(self):
+        self.body = pymunk.Body(mass=pymunk.inf, moment=pymunk.inf, body_type=pymunk.Body.STATIC)
+        self.body.position = Vec2d(level.world_to_map(self.position))
+        self.body.angle = self.angle
+        self.shape = pymunk.Poly.create_box(self.body, (2, 2))
+        self.shape.collision_type = CollisionType.ROBOT
+        level.space.add(self.body, self.shape)
+        shape_to_robot[self.shape] = self
+
+    def delete_body(self):
+        del shape_to_robot[self.shape]
+        level.space.remove(self.body, self.shape)
+
+    def create_visuals(self):
+        position = level.world_to_map(self.position)
+        self.sprite = BigSprite(self.position, self.SPRITE, angle=self.angle)
+        self.light = Light(position, (1.0, 0.1, 0.1), 300)
+        lighting.add_light(self.light)
+
+    def delete_visuals(self):
+        self.sprite.delete()
+        lighting.remove_light(self.light)
+
+    def update(self, dt):
+        to_player = (player.body.position - self.body.position)
+        self.body.angle = self.sprite.angle = to_player.angle
+
+    def on_damage(self, damage):
+        # TODO
+        print(f'Boss took {damage} damage')
+
+    def delete(self):
+        pyglet.clock.unschedule(self.update)
+        self.delete_visuals()
+        self.delete_body()
+
+
+@big_object
+class Boss1(Boss):
+    SPRITE = (2, 0)
+
+    weapon = Weapon("Rockets",
+        damage_multiplier=5,
+        cooldown_multiplier=1,
+        speed=1,
+        color=BulletColor.BULLET_COLOR_WHITE,
+        shape=BulletShape.BULLET_SHAPE_NORMAL,
+        cls=Rocket
+    )
+
+    def start(self):
+        pyglet.clock.schedule(self.update)
+        RobotShootsConstantly(self)
 
 
 class Ray:
