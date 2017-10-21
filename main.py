@@ -2339,7 +2339,7 @@ BigSprite.load()
 WideSprite.load()
 
 game = Game()
-level = Level("new_mars")
+level = Level("level1")
 level.spawn_map_objects()
 
 reticle = Reticle()
