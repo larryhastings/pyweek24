@@ -199,9 +199,39 @@
    <property name="wall" value="1"/>
   </properties>
  </tile>
+ <tile id="60">
+  <properties>
+   <property name="wall" type="int" value="0"/>
+  </properties>
+ </tile>
  <tile id="61">
   <properties>
    <property name="wall" type="int" value="2"/>
+  </properties>
+ </tile>
+ <tile id="62">
+  <properties>
+   <property name="wall" type="int" value="0"/>
+  </properties>
+ </tile>
+ <tile id="63">
+  <properties>
+   <property name="wall" type="int" value="0"/>
+  </properties>
+ </tile>
+ <tile id="64">
+  <properties>
+   <property name="wall" type="int" value="0"/>
+  </properties>
+ </tile>
+ <tile id="72">
+  <properties>
+   <property name="wall" type="int" value="0"/>
+  </properties>
+ </tile>
+ <tile id="73">
+  <properties>
+   <property name="wall" type="int" value="0"/>
   </properties>
  </tile>
 </tileset>
