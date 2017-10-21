@@ -560,7 +560,8 @@ class Game:
             self.draw_labels = explicit_labels
         else:
             self.draw_labels = list(self.labels[self.state])
-        window.set_exclusive_mouse(self.paused())
+
+        window.set_exclusive_mouse(not self.paused())
 
         if player:
             player.on_game_state_change()
@@ -592,6 +593,7 @@ class Game:
     paused_states = {
         GameState.NEW_GAME,
         GameState.LOAD_LEVEL,
+        GameState.PRESHOW,
         GameState.PAUSED,
         GameState.GAME_OVER,
         GameState.GAME_WON,
@@ -599,7 +601,8 @@ class Game:
         }
 
     def paused(self):
-        return self.state in self.paused_states
+        # return self.state in self.paused_states
+        return self.state != GameState.PLAYING
 
     def close(self):
         window.set_exclusive_mouse(False)
