@@ -9,6 +9,7 @@ import os
 import pprint
 import random
 import sys
+import operator
 
 # built from source, removed "inline" from Group_kill_p in */group.h
 from lepton import default_system
@@ -641,7 +642,7 @@ class Level:
 
         # filter only lets through things that cares about
         # e.g. "player collision filter" masks out things the player shouldn't collide with
-        self.wall_only_collision_filter = pymunk.ShapeFilter(mask=CollisionType.WALL)
+        self.wall_only_collision_filter = pymunk.ShapeFilter(mask=CollisionType.WALL &  ~CollisionType.PLAYER)
 
         self.player_collision_filter = pymunk.ShapeFilter(
             group=CollisionType.PLAYER,
@@ -1013,7 +1014,7 @@ class RailgunBullet(BulletBase):
         (1.0, 0.0, 0.0, 0.5),
         ]
 
-    radius = 0.1
+    radius = 0
 
     def _fire(self, shooter, vector, modifier):
         super()._fire(shooter, vector, modifier)
@@ -1024,36 +1025,45 @@ class RailgunBullet(BulletBase):
         long_enough_vector = vector * 150
         railgun_test_endpoint = shooter.position + long_enough_vector
 
-        wall_hit = level.space.segment_query_first(shooter.position, railgun_test_endpoint,
-            self.radius, level.wall_only_collision_filter)
-
-        collisions = level.space.segment_query(shooter.position, wall_hit.point,
+        collisions = level.space.segment_query(shooter.position, railgun_test_endpoint,
             self.radius, level.player_bullet_collision_filter)
 
         # simulate collisions
-        for collision in collisions:
-            if collision.shape == wall_hit.shape:
-                continue
+
+
+        for collision in sorted(collisions, key=operator.attrgetter('alpha')):
+            if collision.shape.body != shooter.body:
+                # Apply impulse
+                collision.shape.body.apply_impulse_at_world_point(
+                    long_enough_vector * modifier.damage_multiplier,
+                    collision.point
+                )
+            if collision.shape.collision_type & CollisionType.WALL:
+                hit = shooter.position + long_enough_vector * collision.alpha
+                break
             # TODO
             # robots can't fire railguns yet
             assert shooter is player
             robot = shape_to_robot.get(collision.shape)
             if robot:
                 robot.on_damage(self.damage)
+        else:
+            return
 
         offset = reticle.offset.normalized() * player.radius
         ray_start = level.map_to_world(shooter.position + offset)
-        ray_end = level.map_to_world(wall_hit.point)
+        ray_end = level.map_to_world(hit)
+        Impact.emit(ray_end, -vector)
 
         # print("RAILGUN COLOR", modifier.color)
-        self.ray = Ray(ray_start, ray_end, width=2, color=self.colors[modifier.color])
-        self.growth = 10.0
-        pyglet.clock.schedule_once(self.die, 0.5)
+        self.ray = Ray(ray_start, ray_end, width=1, color=self.colors[modifier.color])
+        self.growth = 1000
+        pyglet.clock.schedule_once(self.die, 0.6)
 
     def on_update(self, dt):
-        self.ray.width += self.growth * dt
+        self.ray.width *= self.growth ** dt
         c = self.ray.color
-        self.ray.color = (*c[:3], c[3] - 1.0 * dt)
+        self.ray.color = (*c[:3], c[3] - 1.2 * dt)
 
     def die(self, dt):
         self.close()
@@ -1288,6 +1298,7 @@ class Player:
         self.shape = pymunk.Circle(self.body, self.radius)
         self.shape.collision_type = CollisionType.PLAYER
         self.shape.filter = level.player_collision_filter
+
         self.shape.elasticity = 0.1
         level.space.add(self.body, self.shape)
         self.trail = Trail(self, viewport, level)
