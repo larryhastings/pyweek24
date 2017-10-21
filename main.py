@@ -247,9 +247,10 @@ class Crate(RobotSprite):
     def __init__(self, position):
         super().__init__(position, self.SPRITE)
 
-        self.body = pymunk.Body(mass=50, moment=10, body_type=pymunk.Body.DYNAMIC)
+        self.body = pymunk.Body(mass=20, moment=10, body_type=pymunk.Body.DYNAMIC)
         self.body.position = Vec2d(level.world_to_map(self.position))
         self.shape = pymunk.Poly.create_box(self.body, (1, 1))
+        self.shape.collision_type = CollisionType.WALL
         level.space.add(self.shape)
         level.space.add(self.body)
         pyglet.clock.schedule(self.update)
@@ -879,15 +880,17 @@ class RailgunBullet(BulletBase):
         ray_end = level.map_to_world(wall_hit.point)
 
         # print("RAILGUN COLOR", modifier.color)
-        self.ray = Ray(ray_start, ray_end, width=3, color=self.colors[modifier.color])
-        self.display_countdown = 0.05 # seconds to leave the ray onscreen
-
+        self.ray = Ray(ray_start, ray_end, width=2, color=self.colors[modifier.color])
+        self.growth = 10.0
+        pyglet.clock.schedule_once(self.die, 0.5)
 
     def on_update(self, dt):
-        if self.display_countdown >= 0:
-            self.display_countdown -= dt
-            if self.display_countdown < 0:
-                self.close()
+        self.ray.width += self.growth * dt
+        c = self.ray.color
+        self.ray.color = (*c[:3], c[3] - 1.0 * dt)
+
+    def die(self, dt):
+        self.close()
 
     def close(self):
         super().close()
@@ -1537,20 +1540,35 @@ class Ray:
         cls.batch.draw()
 
     __slots__ = (
-        '_start', '_end', '_width', 'vl',
+        '_start', '_end', '_width', '_color', 'vl',
     )
 
     def __init__(self, start, end, width=2.0, color=(1.0, 1.0, 1.0, 0.5)):
         self._start = Vec2d(start)
         self._end = Vec2d(end)
         self._width = width * 0.5
+        self._color = color
         self.vl = self.batch.add(
             4, gl.GL_QUADS, self.group,
             ('v2f/dynamic', (0, 0, 1, 0, 1, 1, 0, 1)),
             ('t2f/dynamic', (0, 0, 0, 1, 1, 1, 1, 0)),
-            ('c4f/static', [comp for _ in range(4) for comp in color]),
+            ('c4f/dynamic', self._color_vals()),
         )
         self._recalculate()
+
+    def _color_vals(self):
+        return [comp for _ in range(4) for comp in self._color]
+
+    @property
+    def color(self):
+        return self._color
+
+    @color.setter
+    def color(self, v):
+        assert len(v) == 4
+        self._color = v
+        vs = self._color_vals()
+        self.vl.colors = self._color_vals()
 
     @property
     def start(self):
