@@ -415,7 +415,6 @@ class Level:
                 gid = tileset.firstgid + tile.id
                 props = {p.name: p.value for p in tile.properties}
                 if props.get('cls'):
-                    print(gid, props['cls'])
                     types[gid] = OBJECT_TYPES[props['cls']]
 
         for obj in self.tiles.layers[1].objects:
@@ -1559,7 +1558,7 @@ class Player:
         hud.set_weapon_enabled(bit - 1, not enabled)
 
         weapon = weapon_matrix[index]
-        print(f"Weapon: {weapon}\n")
+        # print(f"Weapon: {weapon}\n")
         self.sprite.level = weapon.player_level
         self.weapon_index = index
 
@@ -1778,22 +1777,29 @@ robot_base_weapon = Weapon("robot base weapon",
     cls=Bullet)
 
 
-class RobotShootConstantly(RobotBehaviour):
+class RobotShootsConstantly(RobotBehaviour):
     cooldown = 0
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cooldown = random.randint(100, 200)
 
     def on_update(self, dt):
         if self.cooldown > 0:
             self.cooldown -= 1
             return
 
-        vector_to_player = Vec2d(player.position) - robot.position
+        vector_to_player = Vec2d(player.position) - self.robot.position
         bullet = robot_base_weapon.fire(self.robot, vector_to_player)
         self.cooldown = bullet.cooldown
 
 
-
 class RobotShootsOnlyWhenPlayerIsVisible(RobotBehaviour):
     cooldown = 0
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cooldown = random.randint(100, 200)
 
     def on_update(self, dt):
         if self.cooldown > 0:
@@ -2104,12 +2110,15 @@ hud = HUD(viewport)
 
 def spawn_robot(map_pos):
     robot = Robot(map_pos, evolution=random.randint(0, 3))
-    # RobotShootsConstantly(robot)
-    RobotShootsOnlyWhenPlayerIsVisible(robot)
     # RobotMovesRandomly(robot)
     # RobotMovesStraightTowardsPlayer(robot)
     # RobotScuttlesBackAndForth(robot, Vec2d(1, 0))
     # RobotMovesRandomly(robot)
+
+    if random.randint(0, 2):
+        RobotShootsOnlyWhenPlayerIsVisible(robot)
+    else:
+        RobotShootsConstantly(robot)
 
     if random.randint(0, 1):
         RobotWalksInASquare(robot, Vec2d(1, 0))
