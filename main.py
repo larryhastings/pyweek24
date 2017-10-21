@@ -481,9 +481,124 @@ class Level:
                             final_rects.remove(r2)
                             check_next.add(r2)
                 check = check_next
-            blob = list(blob)
-            blob.sort(key=sort_by_y)
             blobs.append(blob)
+
+        # pass 5:
+        # pass 4 produced "blobs", which are sets of boxes
+        # that are all touching (you can reach any tile from
+        # any other tile in the blob, but you cannot reach any
+        # tile in any other other blob).
+        #
+        # however! just creating those boxes like layer cakes
+        # means that there are cracks between them:
+        #            ___
+        #          _[___] /___  like here for example
+        #         [_____] \
+        #
+        # And if something hits that crack JUST RIGHT you can
+        # get unpredictable collisions.
+        #
+        # So we "spackle" in these cracks with an extra box:
+        #            ___
+        #          _[___#
+        #         [_____#
+        # Just a 1x2 box stacked on top of the two existing boxes,
+        # straddling the crack.  Since it's static geometry it
+        # won't give Chipmunk a tummyache.
+        #
+        # How do we find cracks?  They appear at the leftmost
+        # (and rightmost) tile of the box where there's a tile
+        # above us--or below us.
+        #
+        # Minor optimization:
+        # If there are tiles above and below 
+        #            ___
+        #          _[___]
+        #         [_____] <--- like here for example
+        #           [___]
+        # create a 1x3 tile here.  (Actually it needs to be
+        # "height of middle box + 2" tall.)
+        #
+        # Minor lurking bug:
+        # This algorithm assumes that there are no other boxes within
+        # a tile of our blob.  (If there were, we'd be connected to them.)
+        # This means that the algorithm won't generate spackle between a
+        # blob and the edge of the level.  This shouldn't be a problem
+        # because bullets / players / monsters can never wedge into those
+        # cracks.
+
+        blob_lists = []
+        for blob in blobs:
+            spackles = set()
+            def add_spackle(x1, y1, x2, y2):
+                new_rect = ((x1, y1), (x2, y2))
+                print("NEW RECT", new_rect)
+                if new_rect in spackles:
+                    return
+                if new_rect in rect:
+                    return
+                spackles.add(new_rect)
+
+            for rect in blob:
+                def single_pass(iterator):
+                    nonlocal rect
+                    spackled_above = spackled_below = False
+                    y_above = rect[0][1] - 1
+                    y_below = rect[1][1]
+                    print("SINGLE PASS ON RECT", rect)
+                    print("Y ABOVE", y_above)
+                    print("Y BELOW", y_below)
+                    for x in iterator:
+                        tile_above = self.collision_tile_at(x, y_above)
+                        tile_below = self.collision_tile_at(x, y_below)
+                        if (tile_above and tile_below
+                            and not (spackled_above or spackled_below)):
+                            # the "1x3" tile
+                            add_spackle(x, y_above, x+1, y_below + 1)
+                            break
+                        if tile_above:
+                            # 1x2 tile going up
+                            add_spackle(x, y_above, x+1, y_above + 2)
+                            if spackled_below:
+                                break
+                            spackled_above = True
+                        if tile_below:
+                            # 1x2 tile going down
+                            add_spackle(x, y_below - 1, x + 1, y_below + 1)
+                            if spackled_above:
+                                break
+                            spackled_below = True
+
+                # l-r pass
+                single_pass(range(rect[0][0], rect[1][0]))
+                # rl- pass
+                single_pass(range(rect[1][0] - 1, rect[1][0] - 1, -1))
+
+            def print_inverted_blob(blob):
+                a = []
+                for rect in sorted(blob, key=sort_by_reverse_y):
+                    (x1, y1), (x2, y2) = rect
+                    y1 = (self.tiles.height + 0) - (y1 + 0)
+                    y2 = (self.tiles.height + 0) - (y2 + 0)
+                    a.append(f"({x1}, {y2}, {x2}, {y1})")
+                s = ", ".join(a)
+                print("{" + s + "}")
+
+            print("--")
+            print("(printing these in tiled coordinates, YOU'RE WELCOME)")
+            print("blob")
+            print_inverted_blob(blob)
+            print()
+            print("spackles")
+            print_inverted_blob(spackles)
+            print()
+            # blob.update(spackles)
+            new_blob = list(spackles)
+            new_blob.extend(blob)
+            blob_lists.append(new_blob)
+
+        blobs = blob_lists
+
 
         # print("COLLISION BLOBS")
         # pprint.pprint(blobs)
@@ -599,19 +714,12 @@ class Level:
         return Vec2d(x, y)
 
     def collision_tile_at(self, x, y=None):
+        # for collision tiles outside the level, just return -1
+        if not ((0 <= x < self.tiles.width) and (0 <= y < self.tiles.height)):
+            return -1
         gid = self.collision_tiles[self.position_to_tile_index(x, y)].gid
         return gid in self.collision_gids
 
-
-player_bullet_freelist = []
-robot_bullet_freelist = []
-
-# these are lists of bullets that died during this tick.
-# we don't stick them immediately into the freelist,
-# because they might still be churning around inside pymunk.
-# so we add them to the end of freelist at the end of the tick.
-player_finishing_tick = []
-robot_finishing_tick = []
 
 shape_to_bullet = {}
 
@@ -641,7 +749,12 @@ def add_to_bullet_classes(cls):
 class BulletBase:
     offset = Vec2d(0.0, 0.0)
 
+    # in subclasses, this is a list of bullets that died during this tick.
+    # we don't stick them immediately into the freelist,
+    # because they might still be churning around inside pymunk.
+    # so we add them to the end of freelist at the end of the tick.
     finishing_tick = None
+    # and naturally this is a freelist of (subclass) objects.
     freelist = None
 
     def __init__(self):
@@ -877,42 +990,6 @@ class Weapon:
     def fire(self, shooter, vector):
         return self.cls.fire(shooter, vector, self)
 
-"""
-    def initialize(self, robot, damage=DEFAULT_DAMAGE):
-        self.robot = robot
-        vector_to_player = Vec2d(player.position) - robot.position
-        vector_to_player = vector_to_player.normalized()
-
-        self.velocity = vector_to_player * self.speed
-
-        bullet_offset = vector_to_player * (robot.radius + self.radius)
-        self.position = Vec2d(robot.position) + bullet_offset
-
-        super().initialize(damage)
-
-    def close(self):
-        super().close()
-        robot_finishing_tick.append(self)
-
-
-def new_player_bullet():
-    if player_bullet_freelist:
-        b = player_bullet_freelist.pop()
-        b.initialize()
-    else:
-        b = PlayerBullet()
-    bullets.add(b)
-    return b
-
-def new_robot_bullet(robot):
-    if robot_bullet_freelist:
-        b = robot_bullet_freelist.pop()
-        b.initialize(robot)
-    else:
-        b = RobotBullet(robot)
-    bullets.add(b)
-    return b
-"""
 
 
 def on_robot_hit_wall(arbiter, space, data):
