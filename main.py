@@ -608,8 +608,8 @@ class Level:
     def destroy_one(self):
         self.destroyables -= 1
         if self.destroyables == 0:
-            Boss.instance.start()
-
+            if Boss.instance:
+                Boss.instance.start()
 
     def load(self, basename):
         # we should always save the tmx file
@@ -2330,8 +2330,11 @@ class Robot:
 class Boss(Robot):
     SPRITE = None
     radius = 1.2
+    instance = None
 
     started = False
+
+    BEHAVIOUR = RobotShootsConstantly
 
     def __init__(self, position, angle=0):
         self.angle = angle
@@ -2355,7 +2358,7 @@ class Boss(Robot):
         position = level.world_to_map(self.position)
         self.sprite = BigSprite(self.position, self.SPRITE, angle=self.angle)
         self.sprite.sprite.color = (0,) * 3
-        self.light = Light(position, (1.0, 0.1, 0.1), 300)
+        self.light = Light(position, (0.5, 0.0, 0.0), 300)
 
     def delete_visuals(self):
         self.sprite.delete()
@@ -2366,11 +2369,12 @@ class Boss(Robot):
         self.sprite.sprite.color = (255,) * 3
         lighting.add_light(self.light)
         pyglet.clock.schedule(self.update)
-        RobotShootsConstantly(self)
+        self.BEHAVIOUR(self)
 
     def update(self, dt):
         to_player = (player.body.position - self.body.position)
         self.body.angle = self.sprite.angle = to_player.angle
+        self.light.position = self.body.position
 
     def on_damage(self, damage):
         # TODO
@@ -2382,10 +2386,62 @@ class Boss(Robot):
         pyglet.clock.unschedule(self.update)
         self.delete_visuals()
         self.delete_body()
+        Boss.instance = None
+
+
+class SpinningRobot(RobotBehaviour):
+    cooldown = 0
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cooldown = random.randint(100, 200)
+
+    def on_update(self, dt):
+        body = self.robot.body
+        av = body.angular_velocity
+        body.angular_velocity = (av + 1.0 * dt) * 0.9 ** dt
+
+        if self.cooldown > 0:
+            self.cooldown -= 1
+            return
+
+        v = Vec2d(0, 10).rotated(body.angle)
+
+        for angle in (0, math.pi * 2 / 3, math.pi * 4 / 3):
+            bullet = self.robot.weapon.fire(self.robot, v.rotated(angle))
+        self.cooldown = bullet.cooldown
 
 
 @big_object
 class Boss1(Boss):
+    SPRITE = (2, 2)
+
+    weapon = Weapon("Spinning gun",
+        damage_multiplier=5,
+        cooldown_multiplier=0.1,
+        speed=1,
+        color=BulletColor.BULLET_COLOR_WHITE,
+        shape=BulletShape.BULLET_SHAPE_TINY,
+    )
+
+    BEHAVIOUR = SpinningRobot
+
+    def create_body(self):
+        self.body = pymunk.Body(mass=1e4, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
+        self.body.position = Vec2d(level.world_to_map(self.position))
+        self.body.angle = self.angle
+        self.shape = pymunk.Circle(self.body, 0.5)
+        self.shape.collision_type = CollisionType.ROBOT
+        level.space.add(self.body, self.shape)
+        shape_to_robot[self.shape] = self
+
+    def update(self, dt):
+        self.light.position = self.body.position
+        self.sprite.angle = self.body.angle
+
+
+@big_object
+class Boss2(Boss):
     SPRITE = (2, 0)
 
     weapon = Weapon("Rockets",
@@ -2680,6 +2736,9 @@ pyglet.clock.set_fps_limit(30)
 RobotSprite.load()
 BigSprite.load()
 WideSprite.load()
+
+if Boss.instance:
+    Boss.instance.start()
 
 game = Game()
 
