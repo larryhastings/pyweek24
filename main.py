@@ -271,19 +271,18 @@ class EnemyRobotSprite(PlayerRobotSprite):
 
 collectables = set()
 
-class Collectable(RobotSprite):
+class Collectable(PlayerRobotSprite):
     """Sprites for collectables."""
-    ROW = 2
+    ROW = 5
 
-    def __init__(self, position, level=0):
-        super().__init__(position, level)
+    def __init__(self, position, angle=0):
+        super().__init__(position, self.LEVEL)
 
         self.body = pymunk.Body(mass=pymunk.inf, moment=pymunk.inf, body_type=pymunk.Body.STATIC)
         self.body.position = Vec2d(level.world_to_map(self.position))
         self.shape = pymunk.Poly.create_box(self.body, (1, 1))
         self.shape.collision_type = CollisionType.COLLECTABLE
         level.space.add(self.body, self.shape)
-        pyglet.clock.schedule(self.update)
         collectables.add(self)
 
     def delete(self):
@@ -305,11 +304,24 @@ def tilemap_object(cls):
     return cls
 
 
-@tilemap_object
 class Powerup(Collectable):
     def on_collision_player(self, player_shape):
         player.powerups_available |= (1<<(self.level + 1))
         self.delete()
+
+
+@tilemap_object
+class Powerup0(Powerup):
+    LEVEL = 0
+@tilemap_object
+class Powerup1(Powerup):
+    LEVEL = 1
+@tilemap_object
+class Powerup2(Powerup):
+    LEVEL = 2
+@tilemap_object
+class Powerup3(Powerup):
+    LEVEL = 2
 
 
 class BigSprite(RobotSprite):
