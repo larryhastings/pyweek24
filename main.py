@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # system includes
-from enum import IntEnum
+from enum import Enum, IntEnum
 import io
 import math
 from math import floor, atan2, degrees
@@ -294,7 +294,6 @@ class Fab(BigRobotSprite):
         reticle = Reticle()
 
         player = Player()
-        print("NEW PLAYER ", player)
         player.on_player_moved()
         hud = HUD(viewport)
 
@@ -415,13 +414,15 @@ def label(text, font_size, y_ratio):
         anchor_x='center', anchor_y='center')
 
 
-class GameState(IntEnum):
-    GAME_STATE_INVALID = 0
-    GAME_STATE_NEW_GAME = 1
-    GAME_STATE_PLAYING = 2
-    GAME_STATE_PAUSED = 3
-    GAME_STATE_LEVEL_COMPLETE = 4
-    GAME_STATE_GAME_OVER = 5
+class GameState(Enum):
+    INVALID = 0
+    NEW_GAME = 1
+    LOAD_LEVEL = 2
+    PLAYING = 3
+    PAUSED = 4
+    LEVEL_COMPLETE = 5
+    GAME_OVER = 6
+    GAME_WON = 7
 
 class Game:
     press_space_to_continue_label = label('press space to continue', 24, 0.25)
@@ -438,30 +439,45 @@ class Game:
 
     labels = {
 
-        GameState.GAME_STATE_NEW_GAME: [
+        GameState.NEW_GAME: [
             label('welcome to', 32, 0.8),
             logo,
             press_space_for_a_new_game_label,
             press_escape_to_exit_label,
         ],
 
-        GameState.GAME_STATE_PLAYING: [],
+        GameState.LOAD_LEVEL: [
+            label('placeholder', 64, 0.5),
+            label('will load message dynamically...', 32, 0.4),
+            label('soon ...', 32, 0.35),
+            press_space_to_continue_label,
+            press_escape_to_exit_label,
+        ],
 
-        GameState.GAME_STATE_PAUSED: [
+        GameState.PLAYING: [],
+
+        GameState.PAUSED: [
             label('[Pause]', 64, 0.5),
             press_space_to_continue_label,
             press_escape_to_exit_label,
         ],
 
-        GameState.GAME_STATE_LEVEL_COMPLETE: [
+        GameState.LEVEL_COMPLETE: [
             label('Level Complete', 64, 0.5),
             press_space_to_continue_label,
             press_escape_to_exit_label,
         ],
 
-        GameState.GAME_STATE_GAME_OVER: [
+        GameState.GAME_OVER: [
             label('Game Over', 64, 0.5),
             press_space_to_continue_label,
+            press_escape_to_exit_label,
+        ],
+
+        GameState.GAME_WON: [
+            label('You Win', 64, 0.5),
+            label('Congratulations!', 48, 0.6),
+            press_space_for_a_new_game_label,
             press_escape_to_exit_label,
         ],
     }
@@ -470,7 +486,7 @@ class Game:
         self.lives = 5
         self.level = 0
 
-        self.state = GameState.GAME_STATE_NEW_GAME
+        self.state = GameState.NEW_GAME
         self.draw_labels = self.labels[self.state]
 
         self.level_counter = 0
@@ -478,53 +494,78 @@ class Game:
         level = Level(f"new_game")
         level.start()
 
-    def on_space(self):
+    def transition_to(self, state):
         global level
 
-        # advance to next state
-        if self.state in (GameState.GAME_STATE_NEW_GAME, GameState.GAME_STATE_LEVEL_COMPLETE):
-            level.close()
-            self.level_counter += 1
-            level = Level(f"level{self.level_counter}")
-            self.state = GameState.GAME_STATE_PLAYING
-            level.start()
-
-        elif self.state == GameState.GAME_STATE_PLAYING:
-            self.state = GameState.GAME_STATE_PAUSED
-
-        elif self.state == GameState.GAME_STATE_PAUSED:
-            self.state = GameState.GAME_STATE_PLAYING
-
-        elif self.state == GAME_OVER:
+        # leaving this state
+        if self.state in (GameState.GAME_OVER, GameState.GAME_WON):
+            assert state == GameState.NEW_GAME
             self.close()
             global game
             game = Game()
             return
 
-        self.draw_labels = self.labels[self.state]
-        window.set_exclusive_mouse(self.state != GameState.GAME_STATE_PAUSED)
+        self.state = state
+        print(f"transitioning from {self.state} to {state}")
 
-        player.on_game_state_change()
+        # transition to new state
+        if self.state == GameState.LOAD_LEVEL:
+            level.close()
+            self.level_counter += 1
+            level = Level(f"level{self.level_counter}")
+            self.is_final_level = not os.path.isfile(f"maps/level{self.level_counter + 1}.tmx")
+            level.start()
+
+        self.draw_labels = list(self.labels[self.state])
+        window.set_exclusive_mouse(self.state != GameState.PAUSED)
+
+        if player:
+            player.on_game_state_change()
+
+    def on_space(self):
+
+        transition_map = {
+            GameState.NEW_GAME: GameState.LOAD_LEVEL,
+            GameState.LOAD_LEVEL: GameState.PLAYING,
+            GameState.PLAYING: GameState.PAUSED,
+            GameState.PAUSED: GameState.PLAYING,
+            GameState.LEVEL_COMPLETE: GameState.LOAD_LEVEL,
+            GameState.GAME_OVER: GameState.NEW_GAME,
+            GameState.GAME_WON: GameState.NEW_GAME,
+        }
+        self.transition_to(transition_map[self.state])
+
+    paused_states = {
+        GameState.NEW_GAME,
+        GameState.LOAD_LEVEL,
+        GameState.PAUSED,
+        GameState.GAME_OVER,
+        GameState.GAME_WON,
+        }
+
+    def paused(self):
+        return self.state in self.paused_states
 
     def close(self):
         window.set_exclusive_mouse(False)
 
     def on_game_over(self):
-        self.state = GameState.GAME_STATE_GAME_OVER
         global player
         global reticle
+
         if player:
             player.close()
+            player = None
+        if reticle:
             reticle.close()
-        player = None
-        reticle = None
+            reticle = None
 
     def close(self):
         global level
         self.on_game_over()
         if level:
             level.close()
-        level = None
+            level = None
 
     def on_draw(self):
         for label in self.draw_labels:
@@ -541,8 +582,6 @@ class Level:
         global hud
         global player
         global reticle
-
-        print("NEW LEVEL", self)
 
         hud = player = reticle = None
 
@@ -562,7 +601,7 @@ class Level:
         self.draw_options = pymunk.pyglet_util.DrawOptions()
         self.space.gravity = (0.0, 0.0)
         self.construct_collision_geometry()
-        self.objects = []
+        self.objects = set()
         self.destroyables = 0
 
         self.spawn_map_objects()
@@ -583,15 +622,18 @@ class Level:
 
         hud = player = reticle = None
 
-        for o in self.objects:
+        for o in tuple(self.objects):
             if hasattr(o, "close"):
                 o.close()
         self.objects.clear()
 
-    def robot_destroyed(self):
+    def on_robot_destroyed(self, robot):
+        self.objects.discard(robot)
         if not len(robots):
-            pass
-
+            if game.is_final_level:
+                game.transition_to(GameState.GAME_WON)
+            else:
+                game.transition_to(GameState.LEVEL_COMPLETE)
 
     def spawn_map_objects(self):
         tilesets = [t for t in self.tiles.tilesets if 'object' in t.name.lower()]
@@ -615,7 +657,7 @@ class Level:
             angle = math.radians(obj.rotation)
             center = opos + off.rotated(-angle)
 
-            self.objects.append(
+            self.objects.add(
                 cls(center, angle=-angle)
             )
 
@@ -1336,6 +1378,11 @@ class BossKillerBullet(Bullet):
             super().on_update(dt)
             return
 
+        if not player and reticle:
+            self.close()
+            return
+
+
         self.t += dt
         if self.t > self.fire_t:
             self.fired = True
@@ -1779,7 +1826,6 @@ class Player:
         self.shape.filter = level.player_collision_filter
 
         self.shape.elasticity = 0.1
-        print("LEVEL AT PALYER INT", level)
         level.space.add(self.body, self.shape)
         self.trail = Trail(self, viewport, level)
 
@@ -1832,7 +1878,7 @@ class Player:
         self.acceleration = desired_velocity / self.acceleration_frames
 
     def on_game_state_change(self):
-        if game.state == GameState.GAME_STATE_PAUSED:
+        if game.paused():
             assert not self.pause_pressed_keys
             assert not self.pause_released_keys
             return
@@ -1863,7 +1909,7 @@ class Player:
         vector = self.movement_vectors.get(symbol)
         if not vector:
             return
-        if game.state == GameState.GAME_STATE_PAUSED:
+        if game.paused():
             self.pause_pressed_keys.insert(0, symbol)
             return
         self.movement_keys.insert(0, symbol)
@@ -1874,7 +1920,7 @@ class Player:
         vector = self.movement_vectors.get(symbol)
         if not vector:
             return
-        if game.state == GameState.GAME_STATE_PAUSED:
+        if game.paused():
             if symbol in self.pause_pressed_keys:
                 self.pause_pressed_keys.remove(symbol)
             else:
@@ -1948,7 +1994,7 @@ class Player:
         if self.lives:
             pyglet.clock.schedule_once(lambda dt: self.respawn(), 1.5)
         else:
-            game.on_game_over()
+            game.transition_to(GameState.GAME_OVER)
 
 
 class Reticle:
@@ -2120,6 +2166,9 @@ class RobotShootsConstantly(RobotBehaviour):
             self.cooldown -= 1
             return
 
+        if not player:
+            return
+
         vector_to_player = Vec2d(player.position) - self.robot.position
         bullet = self.robot.weapon.fire(self.robot, vector_to_player)
         self.cooldown = bullet.cooldown
@@ -2135,6 +2184,9 @@ class RobotShootsOnlyWhenPlayerIsVisible(RobotBehaviour):
     def on_update(self, dt):
         if self.cooldown > 0:
             self.cooldown -= 1
+            return
+
+        if not player:
             return
 
         collision = level.space.segment_query_first(self.robot.position,
@@ -2232,6 +2284,10 @@ class RobotMovesStraightTowardsPlayer(RobotBehaviour):
     #     self.pick_new_vector()
 
     def on_update(self, dt):
+        if not player:
+            if self.robot.velocity.x or self.robot.velocity.y:
+                self.robot.velocity = Vec2d(0, 0)
+            return
         vector = player.position - self.robot.position
         vector = vector.normalized() * self.speed
         self.robot.velocity = vector
@@ -2332,6 +2388,7 @@ class Robot:
         robots.discard(self)
         self.delete_body()
         self.delete_visuals()
+        level.on_robot_destroyed(self)
 
     close = delete
 
@@ -2356,6 +2413,8 @@ class Boss(Robot):
     SPRITE = None
     radius = 1.2
     instance = None
+
+    health = 800
 
     started = False
 
@@ -2393,8 +2452,8 @@ class Boss(Robot):
         self.started = True
         self.sprite.sprite.color = (255,) * 3
         lighting.add_light(self.light)
-        pyglet.clock.schedule(self.update)
         self.BEHAVIOUR(self)
+        robots.add(self)
 
     def update(self, dt):
         to_player = (player.body.position - self.body.position)
@@ -2402,15 +2461,16 @@ class Boss(Robot):
         self.light.position = self.body.position
 
     def on_damage(self, damage):
-        # TODO
         if not self.started:
             return
-        print(f'Boss took {damage} damage')
+        self.health -= damage
+        if self.health < 0:
+            self.health = 0
+        if self.health == 0:
+            self.on_died()
 
     def delete(self):
-        pyglet.clock.unschedule(self.update)
-        self.delete_visuals()
-        self.delete_body()
+        super().delete()
         Boss.instance = None
 
 
@@ -2700,12 +2760,12 @@ LEFT_MOUSE_BUTTON = pyglet.window.mouse.LEFT
 
 @window.event
 def on_mouse_press(x, y, button, modifiers):
-    if button == LEFT_MOUSE_BUTTON and player.alive:
+    if button == LEFT_MOUSE_BUTTON and player and player.alive:
         player.shooting = True
 
 @window.event
 def on_mouse_release(x, y, button, modifiers):
-    if button == LEFT_MOUSE_BUTTON:
+    if button == LEFT_MOUSE_BUTTON and player:
         player.shooting = False
 
 
@@ -2734,7 +2794,7 @@ def on_draw():
 
 
 def on_update(dt):
-    if game.state == GameState.GAME_STATE_PAUSED:
+    if game.paused():
         return
 
     level.space.step(dt)
