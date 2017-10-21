@@ -73,6 +73,11 @@ class LightRenderer:
         self.ambient = ambient
         self.sh = None
 
+    def clear(self):
+        self.lights.clear()
+        self.shadow_casters = {}
+        self.sh = None
+
     def _build_spatial_hash(self):
         sh = {}
         for (tx, ty), wall in self.shadow_casters.items():

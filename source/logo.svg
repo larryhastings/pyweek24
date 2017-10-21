@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="93.278633mm"
+   height="75.300995mm"
+   viewBox="0 0 330.51484 266.81455"
+   id="svg2"
+   version="1.1"
+   inkscape:version="0.91 r13725"
+   sodipodi:docname="logo.svg"
+   inkscape:export-filename="/home/mauve/dev/pyweek24/gfx/logo.png"
+   inkscape:export-xdpi="90"
+   inkscape:export-ydpi="90">
+  <defs
+     id="defs4">
+    <linearGradient
+       inkscape:collect="always"
+       id="linearGradient5104">
+      <stop
+         style="stop-color:#ffffff;stop-opacity:1;"
+         offset="0"
+         id="stop5106" />
+      <stop
+         style="stop-color:#ffffff;stop-opacity:0;"
+         offset="1"
+         id="stop5108" />
+    </linearGradient>
+    <filter
+       inkscape:collect="always"
+       style="color-interpolation-filters:sRGB"
+       id="filter5086"
+       x="-0.023516173"
+       width="1.0470324"
+       y="-0.027143558"
+       height="1.0542871">
+      <feGaussianBlur
+         inkscape:collect="always"
+         stdDeviation="2.3981243"
+         id="feGaussianBlur5088" />
+    </filter>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient5104"
+       id="linearGradient5110"
+       x1="190.34535"
+       y1="108.3652"
+       x2="190.34535"
+       y2="111.26386"
+       gradientUnits="userSpaceOnUse"
+       spreadMethod="reflect"
+       gradientTransform="matrix(1.030303,0,0,1.0303485,-5.855879,-6.9541311)" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="1.0349609"
+     inkscape:cx="119.19181"
+     inkscape:cy="81.536405"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     inkscape:window-width="1535"
+     inkscape:window-height="876"
+     inkscape:window-x="65"
+     inkscape:window-y="24"
+     inkscape:window-maximized="1" />
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-27.986603,-95.735443)">
+    <rect
+       style="color:#000000;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;opacity:1;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;fill:#1a1a1a;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate"
+       id="rect5100"
+       width="328.51483"
+       height="264.81454"
+       x="28.986603"
+       y="96.735443"
+       rx="6.8598204"
+       ry="6.8598204" />
+    <g
+       id="g5090">
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:74.8846817px;line-height:100%;font-family:Checkbook;-inkscape-font-specification:Checkbook;letter-spacing:0px;word-spacing:0px;fill:#65a9ff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;filter:url(#filter5086)"
+         x="66.587837"
+         y="181.6917"
+         id="text4118"
+         sodipodi:linespacing="100%"><tspan
+           sodipodi:role="line"
+           id="tspan4120"
+           x="66.587837"
+           y="181.6917">My</tspan><tspan
+           sodipodi:role="line"
+           x="66.587837"
+           y="256.57639"
+           id="tspan4122">Sincerest</tspan><tspan
+           sodipodi:role="line"
+           x="66.587837"
+           y="331.46106"
+           id="tspan4124">Apologies</tspan></text>
+      <text
+         sodipodi:linespacing="100%"
+         id="text3336"
+         y="181.6917"
+         x="66.587837"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:74.8846817px;line-height:100%;font-family:Checkbook;-inkscape-font-specification:Checkbook;letter-spacing:0px;word-spacing:0px;fill:#65a9ff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         xml:space="preserve"><tspan
+           y="181.6917"
+           x="66.587837"
+           id="tspan3338"
+           sodipodi:role="line">My</tspan><tspan
+           id="tspan3342"
+           y="256.57639"
+           x="66.587837"
+           sodipodi:role="line">Sincerest</tspan><tspan
+           id="tspan3340"
+           y="331.46106"
+           x="66.587837"
+           sodipodi:role="line">Apologies</tspan></text>
+    </g>
+    <rect
+       ry="12.657144"
+       rx="148.7979"
+       y="105.57582"
+       x="39.937099"
+       height="247.13374"
+       width="306.61386"
+       id="rect5102"
+       style="color:#000000;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;opacity:0.13800001;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;fill:url(#linearGradient5110);fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate" />
+  </g>
+</svg>

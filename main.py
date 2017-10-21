@@ -20,7 +20,7 @@ import pyglet.resource
 import pyglet.window.key
 from pyglet import gl
 
-pyglet.resource.path = ["gfx"]
+pyglet.resource.path = ["gfx", "fonts"]
 pyglet.resource.reindex()
 
 
@@ -400,7 +400,7 @@ class Fans(Destroyable):
 
 def label(text, font_size, y_ratio):
     return pyglet.text.Label(text,
-        font_name='Times New Roman',
+        font_name='Checkbook',
         font_size=font_size,
         x=window.width//2, y=window.height * y_ratio,
         anchor_x='center', anchor_y='center')
@@ -422,13 +422,18 @@ class Game:
 
     press_escape_to_exit_label = label('press escape to exit', 24, 0.2)
 
+    img = pyglet.resource.image('logo.png')
+    img.anchor_x = img.width // 2
+    img.anchor_y = img.height // 2
+    logo = pyglet.sprite.Sprite(img)
+    logo.x = window.width // 2
+    logo.y = window.height // 2
+
     labels = {
 
         GameState.NEW_GAME: [
             label('welcome to', 32, 0.8),
-            label('My', 48, 0.7),
-            label('Sincere', 48, 0.6),
-            label('Apologies', 48, 0.5),
+            logo,
             press_space_for_a_new_game_label,
             press_escape_to_exit_label,
         ],
@@ -516,6 +521,7 @@ class Game:
             GameState.LOAD_LEVEL: GameState.PLAYING,
             GameState.PLAYING: GameState.PAUSED,
             GameState.PAUSED: GameState.PLAYING,
+            GameState.LEVEL_COMPLETE: GameState.LOAD_LEVEL,
             GameState.GAME_OVER: GameState.NEW_GAME,
             GameState.GAME_WON: GameState.NEW_GAME,
         }
@@ -538,6 +544,7 @@ class Game:
     def on_game_over(self):
         global player
         global reticle
+
         if player:
             player.close()
             player = None
@@ -662,6 +669,7 @@ class Level:
         except FileNotFoundError:
             sys.exit(f"Couldn't find tmx for basename {basename}!")
 
+        lighting.clear()
         self.tiles = tmx.TileMap.load(tmx_path)
         self.maprenderer = MapRenderer(self.tiles)
         lighting.shadow_casters = self.maprenderer.shadow_casters
@@ -1803,8 +1811,6 @@ class Player:
 
         self.light = Light(self.position, PLAYER_GLOW)
         lighting.add_light(self.light)
-
-        # self.ray = Ray(self.sprite.position, self.sprite.position, width=3, color=(1.0, 0.0, 0.0, 0.5))
 
     def close(self):
         lighting.remove_light(self.light)
