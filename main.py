@@ -509,7 +509,8 @@ class Game:
         global level
 
         # leaving this state
-        if self.state in (GameState.GAME_OVER, GameState.GAME_WON):
+        if (self.state in (GameState.GAME_OVER, GameState.GAME_WON)
+            or (self.state == GameState.CONFIRM_EXIT and state == GameState.NEW_GAME)):
             assert state == GameState.NEW_GAME
             self.close()
             global game
@@ -559,7 +560,7 @@ class Game:
             self.draw_labels = explicit_labels
         else:
             self.draw_labels = list(self.labels[self.state])
-        window.set_exclusive_mouse(self.state != GameState.PAUSED)
+        window.set_exclusive_mouse(self.paused())
 
         if player:
             player.on_game_state_change()
@@ -2070,6 +2071,8 @@ class Reticle:
         self.sprite = None
 
     def on_mouse_motion(self, x, y, dx, dy):
+        if game.paused():
+            return
         if not player.alive:
             return
         if dx:
@@ -2082,6 +2085,8 @@ class Reticle:
             self.on_player_moved()
 
     def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+        if game.paused():
+            return
         return self.on_mouse_motion(x, y, dx, dy)
 
     def on_player_moved(self):
@@ -2739,6 +2744,10 @@ def key_escape(pressed):
 
     if game.state != GameState.CONFIRM_EXIT:
         game.transition_to(GameState.CONFIRM_EXIT)
+        return
+
+    if game.old_state != GameState.NEW_GAME:
+        game.transition_to(GameState.NEW_GAME)
         return
 
     level.close()
