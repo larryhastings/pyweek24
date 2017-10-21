@@ -2580,6 +2580,4 @@ pyglet.clock.schedule_interval(diffuse_system.update, (1.0/30.0))
 pyglet.clock.schedule_interval(default_system.update, (1.0/30.0))
 pyglet.clock.set_fps_limit(30)
 
-Boss.instance.start()
-
 pyglet.app.run()
