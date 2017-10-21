@@ -120,7 +120,7 @@ class Impact:
 
     color = (0.9, 0.6, 0.2, 0.3)
 
-    spark_tex = pyglet.resource.texture('flare3.png')
+    spark_tex = pyglet.resource.texture('bullet.png')
     spark_texturizer = SpriteTexturizer(spark_tex.id)
 
     sparks = ParticleGroup(
@@ -151,7 +151,7 @@ class Kaboom:
 
     color = (0.9, 0.6, 0.2, 0.3)
 
-    spark_tex = pyglet.resource.texture('flare3.png')
+    spark_tex = pyglet.resource.texture('bullet.png')
     spark_texturizer = SpriteTexturizer(spark_tex.id)
 
     sparks = ParticleGroup(

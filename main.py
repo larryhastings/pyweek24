@@ -749,7 +749,10 @@ class Level:
 
 shape_to_bullet = {}
 
-bullet_flare = pyglet.resource.image("flare3.png")
+def anchor_image_to_center(image):
+    image.anchor_x = image.anchor_y = image.width // 2
+    return image
+
 
 
 class BulletColor(IntEnum):
@@ -793,6 +796,19 @@ class BulletBase:
         else:
             b = cls()
         bullets.add(b)
+        if modifier.count == 3:
+            rotated_ccw = vector.rotated(math.pi / 12) # 15 degrees
+            rotated_cw = vector.rotated(-math.pi / 12) # -15 degrees
+            # TODO HACK okay, this is evil
+            # we need to spawn three bullets with all the other settings
+            # so we create two more bullets but hack modifier.count to be 1
+            # temporarily
+            modifier.count = 1
+            b.fire(shooter, rotated_ccw, modifier)
+            b.fire(shooter, rotated_cw, modifier)
+            modifier.count = 3
+        else:
+            assert modifier.count == 1
         b._fire(shooter, vector, modifier)
         return b
 
@@ -838,25 +854,56 @@ class BulletBase:
         Impact.emit(level.map_to_world(self.position), self.velocity)
 
 
+bullet_image = anchor_image_to_center(pyglet.resource.image("bullet.png"))
+tiny_bullet_image = anchor_image_to_center(pyglet.resource.image("tiny_bullet.png"))
+red_bullet_image = anchor_image_to_center(pyglet.resource.image("red_bullet.png"))
+tiny_red_bullet_image = anchor_image_to_center(pyglet.resource.image("tiny_red_bullet.png"))
+
 @add_to_bullet_classes
 class Bullet(BulletBase):
     finishing_tick = []
     freelist = []
 
     def __init__(self):
-        self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
-        # self.body.velocity_func = self.on_update_velocity
-        self.image = bullet_flare
         self.bounces = 0
         self.last_bounced_wall = None
 
         # bullets are circles with diameter 1/2 the same as tile width (and tile height)
         assert level.tiles.tileheight == level.tiles.tilewidth
-        self.radius = player.radius / 3
-        self.shape = pymunk.Circle(self.body, radius=self.radius, offset=self.offset)
-        shape_to_bullet[self.shape] = self
+
+        images = (bullet_image, red_bullet_image)
+        radius = player.radius / 3
+        body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
+        shape = pymunk.Circle(body, radius=radius, offset=self.offset)
+        shape_to_bullet[shape] = self
+
+        self.normal_bullet = (body, images, radius, shape)
+
+        images = (tiny_bullet_image, tiny_red_bullet_image)
+        radius = player.radius / 6
+        body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
+        shape = pymunk.Circle(body, radius=radius, offset=self.offset)
+        shape_to_bullet[shape] = self
+
+        self.small_bullet = (body, images, radius, shape)
 
     def _fire(self, shooter, vector, modifier):
+        if modifier.shape == BulletShape.BULLET_SHAPE_TINY:
+            bullet_shape = self.small_bullet
+        else:
+            bullet_shape = self.normal_bullet
+
+        body, images, radius, shape = bullet_shape
+        if modifier.color == BulletColor.BULLET_COLOR_RED:
+            image = images[1]
+        else:
+            image = images[0]
+
+        self.body = body
+        self.image = image
+        self.radius = radius
+        self.shape = shape
+
         super()._fire(shooter, vector, modifier)
 
         # HANDLE SHAPE
@@ -896,8 +943,8 @@ class Bullet(BulletBase):
         self.light.position = self.position
 
         sprite_coord = level.map_to_world(self.position)
-        # TODO no idea why this seems necessary
-        sprite_coord -= Vec2d(64, 64)
+        # move 
+        # sprite_coord -= Vec2d(64, 64)
         self.sprite.position = sprite_coord
 
     def destroy_visuals(self):
@@ -1019,37 +1066,39 @@ class RailgunBullet(BulletBase):
 
 
 
+# keep these sorted (exept name is always first)
 class Weapon:
     def __init__(self, name,
-            damage_multiplier=1,
-            cooldown_multiplier=1,
-            speed=1,
-            color=BulletColor.BULLET_COLOR_WHITE,
-            shape=BulletShape.BULLET_SHAPE_NORMAL,
             bounces = 0,
-            bullets = 1,
-            cls=Bullet):
+            cls=Bullet,
+            count = 1,
+            color=BulletColor.BULLET_COLOR_WHITE,
+            cooldown_multiplier=1,
+            damage_multiplier=1,
+            shape=BulletShape.BULLET_SHAPE_NORMAL,
+            speed=1,
+            ):
         self.name = name
-        self.damage_multiplier = damage_multiplier
-        self.cooldown_multiplier = cooldown_multiplier
-        self.speed = speed
-        self.color = color
-        self.shape = shape
         self.bounces = bounces
-        self.bullets = bullets
         self.cls = cls
+        self.color = color
+        self.cooldown_multiplier = cooldown_multiplier
+        self.count = count
+        self.damage_multiplier = damage_multiplier
+        self.shape = shape
+        self.speed = speed
 
     def __repr__(self):
         s = f'<Weapon "{self.name}"'
         for attr, default in (
-            ("damage_multiplier", 1),
-            ("cooldown_multiplier",1),
-            ("speed",1),
-            ("color",BulletColor.BULLET_COLOR_WHITE),
-            ("shape",BulletShape.BULLET_SHAPE_NORMAL),
-            ("cls",Bullet),
             ("bounces",0),
-            ("bullets",1),
+            ("cls",Bullet),
+            ("color",BulletColor.BULLET_COLOR_WHITE),
+            ("cooldown_multiplier",1),
+            ("count",1),
+            ("damage_multiplier", 1),
+            ("shape",BulletShape.BULLET_SHAPE_NORMAL),
+            ("speed",1),
             ):
             value = getattr(self, attr)
             if value != default:
@@ -1123,24 +1172,28 @@ class Powerup(IntEnum):
 # but you also give something up
 bullet_modifiers = [
     Weapon("triple",
-        damage_multiplier=0.4,
         cooldown_multiplier=0.6,
-        speed=1.3,
+        count=3,
+        damage_multiplier=0.4,
         shape=BulletShape.BULLET_SHAPE_TINY,
-        bullets=3),
+        speed=1.3,
+        ),
     Weapon("boosted",
-        damage_multiplier=1.6,
+        color=BulletColor.BULLET_COLOR_RED,
         cooldown_multiplier=3,
+        damage_multiplier=1.6,
         speed=0.7,
-        color=BulletColor.BULLET_COLOR_RED),
+        ),
     Weapon("bouncy",
-        damage_multiplier=0.8,
+        bounces=1,
         cooldown_multiplier=1.5,
-        bounces=1),
+        damage_multiplier=0.8,
+        ),
     Weapon("railgun",
-        damage_multiplier=1.2,
+        cls=RailgunBullet,
         cooldown_multiplier=1.2,
-        cls=RailgunBullet),
+        damage_multiplier=1.2,
+        ),
     ]
 
 weapon_matrix = []
@@ -1159,14 +1212,19 @@ for i in range(16):
         for bit, delta in enumerate(bullet_modifiers):
             if i & (1<<bit):
                 names.append(delta.name)
-                weapon.damage_multiplier *= delta.damage_multiplier
-                weapon.cooldown_multiplier *= delta.cooldown_multiplier
+
                 weapon.bounces += delta.bounces
-                weapon.bullets += (delta.bullets - 1)
                 if delta.cls != Bullet:
                     weapon.cls = delta.cls
                 if delta.color != BulletColor.BULLET_COLOR_WHITE:
                     weapon.color = delta.color
+                weapon.cooldown_multiplier *= delta.cooldown_multiplier
+                weapon.count += (delta.count - 1)
+                weapon.damage_multiplier *= delta.damage_multiplier
+                if delta.shape != BulletShape.BULLET_SHAPE_NORMAL:
+                    weapon.shape = delta.shape
+                weapon.speed *= delta.speed
+
         names.append("shot")
         weapon.name = " ".join(names)
 
@@ -1369,8 +1427,7 @@ class Player:
 
 class Reticle:
     def __init__(self):
-        self.image = pyglet.image.load("gfx/reticle.png")
-        self.image.anchor_x = self.image.anchor_y = self.image.width // 2
+        self.image = anchor_image_to_center(pyglet.image.load("gfx/reticle.png"))
         self.sprite = pyglet.sprite.Sprite(self.image, batch=level.bullet_batch, group=level.foreground_sprite_group)
         self.position = Vec2d(0, 0)
         # how many pixels movement onscreen map to one revolution
