@@ -538,7 +538,7 @@ class Level:
         # above us--or below us.
         #
         # Minor optimization:
-        # If there are tiles above and below 
+        # If there are tiles above and below
         #            ___
         #          _[___]
         #         [_____] <--- like here for example
@@ -769,6 +769,7 @@ def add_to_bullet_classes(cls):
 
 class BulletBase:
     offset = Vec2d(0.0, 0.0)
+    light_radius = 200
 
     # in subclasses, this is a list of bullets that died during this tick.
     # we don't stick them immediately into the freelist,
@@ -937,7 +938,7 @@ class Bullet(BulletBase):
         self._fire_basics(shooter, vector, modifier)
 
     def create_visuals(self):
-        self.light = Light(self.position, self.light_color)
+        self.light = Light(self.position, self.light_color, self.light_radius)
         lighting.add_light(self.light)
         self.sprite = pyglet.sprite.Sprite(
             self.image,
@@ -949,7 +950,7 @@ class Bullet(BulletBase):
         self.light.position = self.position
 
         sprite_coord = level.map_to_world(self.position)
-        # move 
+        # move
         # sprite_coord -= Vec2d(64, 64)
         self.sprite.position = sprite_coord
 
@@ -983,7 +984,8 @@ class BossKillerBullet(Bullet):
     finishing_tick = []
     freelist = []
     radius = 0.7071067811865476 * 2
-    light_color = (0.85, 0.85, 1.0)
+    light_color = (2, 2, 10.0)
+    light_radius = 400
     image = load_centered_image("white_circle.png")
 
     def __init__(self):
