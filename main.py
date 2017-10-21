@@ -270,6 +270,7 @@ class EnemyRobotSprite(PlayerRobotSprite):
 
 
 collectables = set()
+shape_to_collectable = {}
 
 class Collectable(PlayerRobotSprite):
     """Sprites for collectables."""
@@ -283,11 +284,15 @@ class Collectable(PlayerRobotSprite):
         self.shape = pymunk.Poly.create_box(self.body, (1, 1))
         self.shape.collision_type = CollisionType.COLLECTABLE
         level.space.add(self.body, self.shape)
+        shape_to_collectable[self.shape] = self
+        if hasattr(self, "update"):
+            pyglet.clock.schedule(self.update)
         collectables.add(self)
 
     def delete(self):
         collectables.discard(self)
         level.space.remove(self.body, self.shape)
+        del shape_to_collectable[self.shape]
         super().delete()
 
     def close(self):
@@ -308,6 +313,7 @@ class Powerup(Collectable):
     def on_collision_player(self, player_shape):
         player.powerups_available |= (1<<(self.level + 1))
         self.delete()
+        level.maybe_level_is_finished()
 
 
 @tilemap_object
@@ -586,7 +592,7 @@ class Game:
         # leaving this state
         if (self.state in (GameState.GAME_OVER, GameState.GAME_WON)
             or (self.state == GameState.CONFIRM_EXIT and state == GameState.NEW_GAME)):
-            assert state == GameState.NEW_GAME
+            assert state == GameState.NEW_GAME, f"in {self.state}, expected NEW_GAME, got {state}"
             self.close()
             global game
             game = Game()
@@ -766,7 +772,10 @@ class Level:
 
     def on_robot_destroyed(self, robot):
         self.objects.discard(robot)
-        if not len(robots):
+        self.maybe_level_is_finished()
+
+    def maybe_level_is_finished(self):
+        if not (len(robots) or len(collectables)):
             if game.is_final_level:
                 game.transition_to(GameState.GAME_WON)
             else:
@@ -1248,6 +1257,9 @@ class Level:
 
 
 
+bullets = set()
+shape_to_bullet = {}
+
 
 class BulletColor(IntEnum):
     BULLET_COLOR_INVALID = 0
@@ -1262,7 +1274,6 @@ class BulletShape(IntEnum):
 
 PLAYER_BASE_DAMAGE = 100
 
-shape_to_bullet = {}
 
 BulletClasses = []
 def add_to_bullet_classes(cls):
@@ -1782,8 +1793,6 @@ def on_player_got_collectable(arbiter, space, data):
     return True
 
 
-
-bullets = set()
 
 def bullet_collision(entity, arbiter):
     bullet_shape = arbiter.shapes[0]
@@ -2568,8 +2577,6 @@ class Boss(Robot):
 
     started = False
 
-    BEHAVIOUR = RobotShootsConstantly
-
     def __init__(self, position, angle=0):
         self.angle = angle
         super().__init__(position)
@@ -2603,7 +2610,6 @@ class Boss(Robot):
         self.started = True
         self.sprite.sprite.color = (255,) * 3
         lighting.add_light(self.light)
-        self.BEHAVIOUR(self)
         robots.add(self)
 
     def update(self, dt):
@@ -2625,7 +2631,7 @@ class Boss(Robot):
         Boss.instance = None
 
 
-class SpinningRobot(RobotBehaviour):
+class RobotSpins(RobotBehaviour):
     cooldown = 0
 
     def __init__(self, *args, **kwargs):
@@ -2660,7 +2666,11 @@ class Boss1(Boss):
         shape=BulletShape.BULLET_SHAPE_TINY,
     )
 
-    BEHAVIOUR = SpinningRobot
+    def start(self):
+        super().start()
+        RobotSpins(self)
+        RobotSleeps(self, 6.0, 2.0)
+        RobotMovesRandomly(self, 0.8)
 
     def create_body(self):
         self.body = pymunk.Body(mass=1e4, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
@@ -2688,6 +2698,11 @@ class Boss2(Boss):
         shape=BulletShape.BULLET_SHAPE_NORMAL,
         cls=Rocket
     )
+
+    def start(self):
+        super().start()
+        RobotShootsConstantly(self)
+
 
 
 class Ray:
@@ -2806,7 +2821,7 @@ def spawn_robot(map_pos):
     # RobotMovesStraightTowardsPlayer(robot)
     # RobotScuttlesBackAndForth(robot, Vec2d(1, 0))
     # RobotMovesRandomly(robot)
-    RobotSleeps(robot, 0.5, 0.5)
+    # RobotSleeps(robot, 0.5, 0.5)
 
     if random.randint(0, 2):
         RobotShootsOnlyWhenPlayerIsVisible(robot)
@@ -2884,6 +2899,16 @@ key_remapper = {
 @window.event
 def on_key_press(symbol, modifiers):
     symbol = key_remapper.get(symbol, symbol)
+
+    # level warp
+    if ((modifiers & (key.MOD_CTRL | key.MOD_SHIFT)) 
+        and (key.F1 <= symbol <= key.F12)
+        and (game.state == GameState.NEW_GAME)
+        ):
+        game.level_counter = symbol - key.F1
+        # print(f"warping to level {game.level_counter + 1}")
+        game.transition_to(GameState.LOAD_LEVEL)
+        return
 
     # calling player manually instead of stacking event handlers
     # so we can benefit from remapped keys
