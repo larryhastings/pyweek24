@@ -48,7 +48,7 @@ vector_unit_y = Vec2d(0, 1)
 import tmx
 
 # local libraries
-from particles import Trail, Kaboom, Smoke, diffuse_system, Impact
+from particles import Trail, Kaboom, Smoke, diffuse_system, Impact, Debris
 from maprenderer import MapRenderer, Viewport
 from lighting import LightRenderer, Light
 from hud import HUD
@@ -440,6 +440,7 @@ class Destroyable(WideSprite):
                 spawn_robot(self.body.position + v0)
 
             level.destroy_one()
+            Debris.emit(level.map_to_world(self.body.position))
         else:
             pyglet.clock.schedule(self.update)
 

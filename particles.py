@@ -146,6 +146,41 @@ class Impact:
         emitter.emit(10, cls.sparks)
 
 
+class Debris:
+    lifetime = 0.5
+
+    color = (1.0, 1.0, 1.0, 1.0)
+
+    fragment_tex = pyglet.resource.texture('fragment.png')
+    fragment_texturizer = SpriteTexturizer(fragment_tex.id)
+
+    fragments = ParticleGroup(
+        controllers=[
+            Lifetime(lifetime),
+            Movement(),
+        ],
+        renderer=BillboardRenderer(fragment_texturizer),
+        system=diffuse_system
+    )
+
+    @classmethod
+    def emit(cls, position):
+        emitter = StaticEmitter(
+            template=Particle(
+                position=(*position, 0),
+                size=(16,) * 3,
+                rotation=(0, 0, 1),
+                color=cls.color),
+            deviation=Particle(
+                age=0.2,
+                rotation=(0, 0, 2)
+            ),
+            velocity=domain.Disc((0, 0, 0), (0, 0, 1), 100))
+
+        emitter.emit(20, cls.fragments)
+
+
+
 class Kaboom:
     lifetime = 0.6
 
