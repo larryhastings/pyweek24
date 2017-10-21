@@ -136,7 +136,8 @@ class RobotSprite:
         for i, img in enumerate(cls.grid.get_texture_sequence()):
             y, x = divmod(i, cls.COLS)
             y = cls.ROWS - y - 1
-            img.anchor_x = img.anchor_y = img.width // 2
+            img.anchor_x = img.width / 2
+            img.anchor_y = img.height / 2
             cls.sprites[x, y] = img
 
     @classmethod
@@ -290,24 +291,48 @@ class Destroyable(WideSprite):
     def __init__(self, position, angle=0):
         super().__init__(position, self.SPRITE, angle=angle)
         self.create_body()
+        self.scalev = 0
 
     def create_body(self):
         self.body = pymunk.Body(mass=pymunk.inf, moment=pymunk.inf, body_type=pymunk.Body.STATIC)
         self.body.position = Vec2d(level.world_to_map(self.position))
-        self.body.position -= Vec2d(0, 0.5).rotated(self.angle)  # FIXME: Why??
         self.body.angle = self.angle
         self.shape = pymunk.Poly.create_box(self.body, (2, 1))
-        self.shape.collision_type = CollisionType.WALL
+        self.shape.collision_type = CollisionType.ROBOT
         level.space.add(self.body, self.shape)
+        shape_to_robot[self.shape] = self
 
-    def on_shot(self):
-        robot = Robot(player.position + Vec2d(5, -5))
-        # RobotShootsConstantly(robot)
-        RobotShootsOnlyWhenPlayerIsVisible(robot)
-        # RobotMovesRandomly(robot)
-        RobotMovesStraightTowardsPlayer(robot)
+    def on_damage(self, damage):
+        pyglet.clock.unschedule(self.update)
+
+        d = damage / 100
+        if self.scalev > 0:
+            self.scalev += d * 2
+        else:
+            self.scalev -= d * 2
+
+        if abs(self.scalev) > 3:
+            self.delete()
+
+            v = Vec2d(0.5, 0)
+            v0 = Vec2d(0, 0)
+            for pos in (-v, v0, v):
+                spawn_robot(self.body.position + v0)
+        else:
+            pyglet.clock.schedule(self.update)
+
+    def update(self, dt):
+        x = self.sprite.scale - 1.0
+        a = -200 * x
+        u = self.scalev
+        v = self.scalev = (u + a * dt) * 0.9
+        self.sprite.scale += 0.5 * (u + self.scalev) * dt
+
+        if abs(self.scalev) < 1e-2:
+            pyglet.clock.unschedule(self.update)
 
     def delete(self):
+        del shape_to_robot[self.shape]
         level.space.remove(self.body, self.shape)
         super().delete()
 
@@ -325,6 +350,22 @@ class Screen1(Destroyable):
 @big_object
 class Screen2(Destroyable):
     SPRITE = 2, 0
+
+@big_object
+class Computer1(Destroyable):
+    SPRITE = 2, 2
+
+@big_object
+class Computer2(Destroyable):
+    SPRITE = 3, 3
+
+@big_object
+class Grille(Destroyable):
+    SPRITE = 1, 3
+
+@big_object
+class Fans(Destroyable):
+    SPRITE = 0, 2
 
 
 class Game:
@@ -381,10 +422,14 @@ class Level:
         for obj in self.tiles.layers[1].objects:
             cls = types[obj.gid]
 
-            ox = obj.x + self.tilew
-            oy = (self.tiles.height + 1) * self.tilew - obj.y
+            opos = Vec2d(obj.x, self.tiles.height * self.tilew - obj.y)
+            off = Vec2d(obj.width / 2, obj.height / 2)
+
+            angle = math.radians(obj.rotation)
+            center = opos + off.rotated(-angle)
+
             self.objects.append(
-                cls((ox, oy), angle=math.radians(obj.rotation))
+                cls(center, angle=-angle)
             )
 
     def load(self, basename):
@@ -1742,7 +1787,7 @@ class RobotShootsOnlyWhenPlayerIsVisible(RobotBehaviour):
             player.radius / 3, # TODO this shouldn't be hard-coded
             level.robot_bullet_collision_filter)
         if collision and collision.shape == player.shape:
-            vector_to_player = Vec2d(player.position) - robot.position
+            vector_to_player = Vec2d(player.position) - self.robot.position
             bullet = robot_base_weapon.fire(self.robot, vector_to_player)
             self.cooldown = bullet.cooldown
 
@@ -1855,7 +1900,7 @@ class Robot:
         self.on_died_callbacks = []
         self.on_update_velocity_callbacks = []
 
-        self.health = 100
+        self.health = 100 * (evolution + 1)
         self.cooldown_range = (180, 240)
         self.cooldown = 0
 
@@ -1906,7 +1951,6 @@ class Robot:
         level.space.remove(self.body, self.shape)
         self.sprite.delete()
         self.sprite = None
-
 
     def on_died(self):
         for fn in self.on_died_callbacks:
@@ -2036,13 +2080,20 @@ reticle = Reticle()
 player = Player()
 player.on_player_moved()
 
-robot = Robot(player.position + Vec2d(5, -5))
-# RobotShootsConstantly(robot)
-RobotShootsOnlyWhenPlayerIsVisible(robot)
-# RobotMovesRandomly(robot)
-# RobotMovesStraightTowardsPlayer(robot)
-# RobotScuttlesBackAndForth(robot, Vec2d(1, 0))
-RobotWalksInASquare(robot, Vec2d(1, 0))
+
+def spawn_robot(map_pos):
+    robot = Robot(map_pos, evolution=random.randint(0, 3))
+    # RobotShootsConstantly(robot)
+    RobotShootsOnlyWhenPlayerIsVisible(robot)
+    # RobotMovesRandomly(robot)
+    # RobotMovesStraightTowardsPlayer(robot)
+    # RobotScuttlesBackAndForth(robot, Vec2d(1, 0))
+    # RobotMovesRandomly(robot)
+
+    if random.randint(0, 1):
+        RobotWalksInASquare(robot, Vec2d(1, 0))
+    else:
+        RobotMovesStraightTowardsPlayer(robot)
 
 keypress_handlers = {}
 def keypress(key):

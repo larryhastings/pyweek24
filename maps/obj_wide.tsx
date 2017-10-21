@@ -43,7 +43,7 @@
  </tile>
  <tile id="8">
   <properties>
-   <property name="cls" value=""/>
+   <property name="cls" value="Fans"/>
   </properties>
  </tile>
  <tile id="9">
@@ -53,7 +53,7 @@
  </tile>
  <tile id="10">
   <properties>
-   <property name="cls" value=""/>
+   <property name="cls" value="Computer1"/>
   </properties>
  </tile>
  <tile id="11">
@@ -68,7 +68,7 @@
  </tile>
  <tile id="13">
   <properties>
-   <property name="cls" value=""/>
+   <property name="cls" value="Grille"/>
   </properties>
  </tile>
  <tile id="14">
@@ -78,7 +78,7 @@
  </tile>
  <tile id="15">
   <properties>
-   <property name="cls" value=""/>
+   <property name="cls" value="Computer2"/>
   </properties>
  </tile>
  <tile id="16">
