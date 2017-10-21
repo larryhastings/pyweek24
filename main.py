@@ -17,6 +17,7 @@ from lepton import default_system
 # pip3.6 install pyglet
 # currently 1.2.4
 import pyglet.resource
+import pyglet.media
 import pyglet.window.key
 from pyglet import gl
 
@@ -79,6 +80,20 @@ default_sound = laser_sound = pyglet.resource.media('laser.wav', streaming=False
 laser2_sound = pyglet.resource.media('laser2.wav', streaming=False)
 bkill_sound = pyglet.resource.media('boss_killer.wav', streaming=False)
 
+
+
+music_player = None
+
+
+def play_music(filename):
+    global music_player
+    if music_player:
+        music_player.delete()
+    music_player = pyglet.resource.media(filename).play()
+    music_player.on_eos = lambda: play_music(filename)
+
+
+play_music('bensound-scifi.mp3')
 
 
 def _clamp(c, other):
