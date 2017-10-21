@@ -1026,7 +1026,6 @@ class Bullet(BulletBase):
         self.red_bullet_color = (1.0, 0.0, 0.0)
         self.normal_bullet_color = (1.0, 1.0, 1.0)
 
-
     def _fire_basics(self, shooter, vector, modifier):
         self.bounces = modifier.bounces
         self.last_bounced_wall = None
@@ -1052,8 +1051,10 @@ class Bullet(BulletBase):
     def _fire(self, shooter, vector, modifier):
         if modifier.shape == BulletShape.BULLET_SHAPE_TINY:
             bullet_shape = self.small_bullet
+            self.light_radius = 120
         else:
             bullet_shape = self.normal_bullet
+            self.light_radius = 200
 
         body, images, radius, shape = bullet_shape
         if modifier.color == BulletColor.BULLET_COLOR_RED:
