@@ -2554,8 +2554,6 @@ class Boss(Robot):
     radius = 1.2
     instance = None
 
-    health = 800
-
     started = False
 
     BEHAVIOUR = RobotShootsConstantly
@@ -2564,6 +2562,7 @@ class Boss(Robot):
         self.angle = angle
         super().__init__(position)
         Boss.instance = self
+        self.health = 1600
 
     def create_body(self):
         self.body = pymunk.Body(mass=pymunk.inf, moment=pymunk.inf, body_type=pymunk.Body.STATIC)
