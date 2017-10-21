@@ -89,8 +89,20 @@ def play_music(filename):
     global music_player
     if music_player:
         music_player.delete()
-    music_player = pyglet.resource.media(filename).play()
-    music_player.on_eos = lambda: play_music(filename)
+    try:
+        music_player = pyglet.resource.media(filename).play()
+        music_player.on_eos = lambda: play_music(filename)
+    except pyglet.media.riff.WAVEFormatException:
+        sys.exit(
+            "\n"
+            "Sorry, you have to install AVBin.\n"
+            "And it doesn't have Ubuntu packages these days.  Sorry again.\n"
+            "\n"
+            "Here's the current AVBin download page:\n"
+            "    http://avbin.github.io/AVbin/Download.html\n"
+            "\n"
+            "Please install AVBin and try again!  And again, my sincere apologies.\n"
+            )
 
 
 play_music('bensound-scifi.mp3')
