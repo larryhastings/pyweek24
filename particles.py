@@ -1,11 +1,19 @@
 # fireworks
 from random import uniform, gauss
 import pyglet
-from lepton import Particle, ParticleGroup, default_system, domain
+from lepton import (
+    Particle, ParticleGroup, default_system, domain, ParticleSystem,
+)
+from lepton.domain import Cylinder
 from lepton.renderer import BillboardRenderer
 from lepton.texturizer import SpriteTexturizer
 from lepton.emitter import StaticEmitter, PerParticleEmitter
 from lepton.controller import Lifetime, Movement, Fader, ColorBlender, Growth
+
+from pymunk import Vec2d
+
+
+diffuse_system = ParticleSystem()
 
 
 class Trail:
@@ -39,7 +47,7 @@ class Trail:
         self.group.bind_controller(self.emitter)
         pyglet.clock.schedule(self.update)
 
-    def __del__(self):
+    def destroy(self):
         self.group.unbind_controller(self.emitter)
 
     def update(self, *_):
@@ -54,6 +62,88 @@ class Trail:
             self.emitter.template.position = (*level.map_to_world(back), 0)
             self.emitter.template.velocity = (*level.map_to_world(backwards), 0)
             self.emitter.template.up = (0, 0, dir.get_angle() - self.viewport.angle)
+
+
+class Smoke:
+    LIFETIME = 0.8
+
+    sprite = pyglet.resource.texture('smoke.png')
+    group = ParticleGroup(
+        controllers=[
+            Lifetime(LIFETIME),
+            Fader(start_alpha=0.3, fade_out_start=0, fade_out_end=LIFETIME),
+            Growth(100),
+            Movement(),
+        ],
+        renderer=BillboardRenderer(
+            SpriteTexturizer(sprite.id)
+        ),
+        system=diffuse_system
+    )
+
+    def __init__(self, wpos):
+        self.last_pos = wpos
+        self.domain = Cylinder(
+            (*wpos, -10),
+            (*wpos, 0),
+            5
+        )
+        self.emitter = StaticEmitter(
+            rate=600,
+            position=self.domain,
+            template=Particle(
+                color=(1.0, 1.0, 1.0, 0.3),
+                size=(2.0,) * 3,
+                rotation=(0, 0, 1),
+                velocity=(0, 0, 0),
+            ),
+            deviation=Particle(
+                rotation=(0, 0, 0.5),
+                angle=(0, 0, 6),
+            )
+        )
+        self.group.bind_controller(self.emitter)
+
+    def destroy(self):
+        self.group.unbind_controller(self.emitter)
+
+    def set_world_position(self, wpos, velocity):
+        pos = Vec2d(wpos)
+        back = pos - velocity
+        self.domain.end_point1 = (*back, 0)
+        self.domain.end_point0 = (*pos, 0)
+        self.emitter.template.velocity = (*(-2 * velocity), 0)
+
+
+class Impact:
+    lifetime = 0.5
+
+    color = (0.9, 0.6, 0.2, 0.3)
+
+    spark_tex = pyglet.resource.texture('flare3.png')
+    spark_texturizer = SpriteTexturizer(spark_tex.id)
+
+    sparks = ParticleGroup(
+        controllers=[
+            Lifetime(lifetime),
+            Movement(),
+            ColorBlender([(0, (1,1,1,1)), (lifetime * 0.8, color), (lifetime, (0, 0, 0, 0))]),
+        ],
+        renderer=BillboardRenderer(spark_texturizer)
+    )
+
+    @classmethod
+    def emit(cls, position, velocity):
+        x, y = position + velocity * 0.3
+        emitter = StaticEmitter(
+            template=Particle(
+                position=(x, y, 0),
+                size=(5,) * 3,
+                color=cls.color),
+            deviation=Particle(age=0.2),
+            velocity=domain.Disc((*-2 * velocity, 0), (0, 0, 1), 100))
+
+        emitter.emit(10, cls.sparks)
 
 
 class Kaboom:

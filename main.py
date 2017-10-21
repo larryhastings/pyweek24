@@ -41,7 +41,7 @@ import tmx
 
 #
 
-from particles import Trail, Kaboom
+from particles import Trail, Kaboom, Smoke, diffuse_system, Impact
 from maprenderer import MapRenderer, Viewport
 from lighting import LightRenderer, Light
 
@@ -49,7 +49,7 @@ from lighting import LightRenderer, Light
 key = pyglet.window.key
 EVENT_HANDLED = pyglet.event.EVENT_HANDLED
 
-window = pyglet.window.Window()
+window = pyglet.window.Window(600, 800)
 window.set_exclusive_mouse(True)
 window.set_caption("My Sincerest Apologies")
 window.set_icon(pyglet.image.load('gfx/icon32.png'), pyglet.image.load('gfx/icon16.png'))
@@ -111,15 +111,15 @@ class RobotSprite:
     batch = pyglet.graphics.Batch()
     diffuse_tex = pyglet.resource.texture('robots_diffuse.png')
     emit_tex = pyglet.resource.texture('robots_emit.png')
+    flip_tex = pyglet.image.Texture(
+        diffuse_tex.width,
+        diffuse_tex.height,
+        gl.GL_TEXTURE_2D,
+        diffuse_tex.id
+    )
 
     @classmethod
     def load(cls):
-        cls.flip_tex = pyglet.image.Texture(
-            cls.diffuse_tex.width,
-            cls.diffuse_tex.height,
-            gl.GL_TEXTURE_2D,
-            cls.diffuse_tex.id
-        )
         cls.grid = pyglet.image.ImageGrid(
             image=cls.flip_tex,
             rows=cls.ROWS,
@@ -134,10 +134,7 @@ class RobotSprite:
 
     @classmethod
     def draw_diffuse(cls):
-        group = next(iter(cls.batch.top_groups), None)
-        if group:
-            group.texture = cls.diffuse_tex
-            cls.batch.draw()
+        cls.batch.draw()
 
     @classmethod
     def draw_emit(cls):
@@ -145,6 +142,7 @@ class RobotSprite:
         if group:
             group.texture = cls.emit_tex
             cls.batch.draw()
+            group.texture = cls.diffuse_tex
 
     def __init__(self, position, sprite_position):
         self.sprite = pyglet.sprite.Sprite(
@@ -240,6 +238,34 @@ class Fab(BigRobotSprite):
         level.space.add(shape)
         level.space.add(self.body)
         level.start_pos = level.world_to_map(position + Vec2d(0, -64))
+
+
+@big_object
+class Crate(RobotSprite):
+    SPRITE = 5, 2
+
+    def __init__(self, position):
+        super().__init__(position, self.SPRITE)
+
+        self.body = pymunk.Body(mass=20, moment=10, body_type=pymunk.Body.DYNAMIC)
+        self.body.position = Vec2d(level.world_to_map(self.position))
+        self.shape = pymunk.Poly.create_box(self.body, (1, 1))
+        self.shape.collision_type = CollisionType.WALL
+        level.space.add(self.shape)
+        level.space.add(self.body)
+        pyglet.clock.schedule(self.update)
+
+    def update(self, dt):
+        self.position = level.map_to_world(self.body.position)
+        self.angle = self.body.angle
+        self.body.angular_velocity *= 0.05 ** dt
+        self.body.velocity *= 0.05 ** dt
+
+    def delete(self):
+        level.space.remove(self.body)
+        level.space.remove(self.shape)
+        super().delete()
+
 
 
 class Game:
@@ -783,6 +809,7 @@ class BulletBase:
 
     def on_collision_wall(self, shape):
         self.spent = True
+        self.draw_impact()
         self.close()
 
     # we rely on collision filters to prevent
@@ -792,6 +819,7 @@ class BulletBase:
         assert self.shooter != player
         player.on_damage(self.damage)
         self.spent = True
+        self.draw_impact()
         self.close()
 
     def on_collision_robot(self, shape):
@@ -800,10 +828,14 @@ class BulletBase:
         if robot:
             robot.on_damage(self.damage)
             self.spent = True
+            self.draw_impact()
             self.close()
 
     def on_draw(self):
         pass
+
+    def draw_impact(self):
+        Impact.emit(level.map_to_world(self.position), self.velocity)
 
 
 @add_to_bullet_classes
@@ -823,7 +855,6 @@ class Bullet(BulletBase):
         self.radius = player.radius / 3
         self.shape = pymunk.Circle(self.body, radius=self.radius, offset=self.offset)
         shape_to_bullet[self.shape] = self
-
 
     def _fire(self, shooter, vector, modifier):
         super()._fire(shooter, vector, modifier)
@@ -847,30 +878,42 @@ class Bullet(BulletBase):
         self.shape.filter = shooter.bullet_collision_filter
         self.shape.elasticity = 1.0
 
-        self.light = Light(self.position)
-        lighting.add_light(self.light)
-
-        self.sprite = pyglet.sprite.Sprite(self.image, batch=level.bullet_batch, group=level.foreground_sprite_group)
-        self.on_update(0)
         self.body.velocity = self.velocity
         level.space.add(self.body, self.shape)
+        self.create_visuals()
+        self.on_update(0)
 
-    def close(self):
-        super().close()
-        level.space.remove(self.body, self.shape)
-        self.sprite.delete()
-        self.sprite = None
-        lighting.remove_light(self.light)
+    def create_visuals(self):
+        self.light = Light(self.position)
+        lighting.add_light(self.light)
+        self.sprite = pyglet.sprite.Sprite(
+            self.image,
+            batch=level.bullet_batch,
+            group=level.foreground_sprite_group
+        )
 
-    def on_update(self, dt):
-        old = self.position
-        self.position = Vec2d(self.body.position)
+    def update_visuals(self):
         self.light.position = self.position
 
         sprite_coord = level.map_to_world(self.position)
         # TODO no idea why this seems necessary
         sprite_coord -= Vec2d(64, 64)
         self.sprite.position = sprite_coord
+
+    def destroy_visuals(self):
+        self.sprite.delete()
+        self.sprite = None
+        lighting.remove_light(self.light)
+
+    def close(self):
+        super().close()
+        level.space.remove(self.body, self.shape)
+        self.destroy_visuals()
+
+    def on_update(self, dt):
+        old = self.position
+        self.position = Vec2d(self.body.position)
+        self.update_visuals()
 
     # def on_update_velocity(self, body, gravity, damping, dt):
     #     self.body.velocity = self.velocity
@@ -880,6 +923,31 @@ class Bullet(BulletBase):
             self.bounces -= 1
             return
         super().on_collision_wall(wall_shape)
+
+@add_to_bullet_classes
+class Rocket(Bullet):
+    finishing_tick = []
+    freelist = []
+
+    SPRITE = (6, 1)
+
+    def create_visuals(self):
+        sprite_coord = level.map_to_world(self.position)
+        self.rocket = RobotSprite(sprite_coord, self.SPRITE)
+        self.smoke = Smoke(sprite_coord)
+        self.rocket.angle = self.velocity.get_angle()
+
+    def update_visuals(self):
+        sprite_coord = level.map_to_world(self.position)
+        self.rocket.position = sprite_coord
+        self.smoke.set_world_position(sprite_coord, self.velocity)
+        self.rocket.angle = self.velocity.get_angle()
+
+    def destroy_visuals(self):
+        self.rocket.delete()
+        self.rocket = None
+        self.smoke.destroy()
+
 
 @add_to_bullet_classes
 class BossKillerBullet(Bullet):
@@ -931,15 +999,17 @@ class RailgunBullet(BulletBase):
         ray_end = level.map_to_world(wall_hit.point)
 
         # print("RAILGUN COLOR", modifier.color)
-        self.ray = Ray(ray_start, ray_end, width=3, color=self.colors[modifier.color])
-        self.display_countdown = 0.05 # seconds to leave the ray onscreen
-
+        self.ray = Ray(ray_start, ray_end, width=2, color=self.colors[modifier.color])
+        self.growth = 10.0
+        pyglet.clock.schedule_once(self.die, 0.5)
 
     def on_update(self, dt):
-        if self.display_countdown >= 0:
-            self.display_countdown -= dt
-            if self.display_countdown < 0:
-                self.close()
+        self.ray.width += self.growth * dt
+        c = self.ray.color
+        self.ray.color = (*c[:3], c[3] - 1.0 * dt)
+
+    def die(self, dt):
+        self.close()
 
     def close(self):
         super().close()
@@ -1193,7 +1263,7 @@ class Player:
             handled.add(self.movement_opposites[key])
 
         desired_velocity = new_acceleration.normalized() * self.top_speed
-        desired_velocity.rotate(reticle.theta)
+        desired_velocity.rotate(reticle.theta - math.pi / 2)
 
         self.desired_velocity = desired_velocity
         self.acceleration = desired_velocity / self.acceleration_frames
@@ -1256,7 +1326,6 @@ class Player:
         self.position = self.body.position
         sprite_coordinates = level.map_to_world(self.position)
         self.sprite.position = sprite_coordinates
-        viewport.position = self.sprite.position
         player_light.position = self.body.position
         reticle.on_player_moved()
 
@@ -1308,15 +1377,15 @@ class Reticle:
         self.acceleration = 3000
         self.mouse_multiplier = -(math.pi * 2) / self.acceleration
         # in radians
-        self.theta = 0
+        self.theta = math.pi * 0.5
         # in pymunk coordinates
         self.magnitude = 3
-        self.offset = Vec2d(self.magnitude, 0)
+        self.offset = Vec2d(0, self.magnitude)
 
     def on_mouse_motion(self, x, y, dx, dy):
         if dx:
             self.theta += dx * self.mouse_multiplier
-            viewport.angle = self.theta
+            viewport.angle = self.theta - math.pi / 2
             self.offset = Vec2d(self.magnitude, 0)
             self.offset.rotate(self.theta)
             player.sprite.rotation = self.theta
@@ -1330,6 +1399,8 @@ class Reticle:
         self.position = Vec2d(player.position) + self.offset
         sprite_coordinates = level.map_to_world(self.position)
         self.sprite.set_position(*sprite_coordinates)
+
+        viewport.position = self.sprite.position + self.offset * 40
 
     def on_draw(self):
         pass
@@ -1553,20 +1624,35 @@ class Ray:
         cls.batch.draw()
 
     __slots__ = (
-        '_start', '_end', '_width', 'vl',
+        '_start', '_end', '_width', '_color', 'vl',
     )
 
     def __init__(self, start, end, width=2.0, color=(1.0, 1.0, 1.0, 0.5)):
         self._start = Vec2d(start)
         self._end = Vec2d(end)
         self._width = width * 0.5
+        self._color = color
         self.vl = self.batch.add(
             4, gl.GL_QUADS, self.group,
             ('v2f/dynamic', (0, 0, 1, 0, 1, 1, 0, 1)),
             ('t2f/dynamic', (0, 0, 0, 1, 1, 1, 1, 0)),
-            ('c4f/static', [comp for _ in range(4) for comp in color]),
+            ('c4f/dynamic', self._color_vals()),
         )
         self._recalculate()
+
+    def _color_vals(self):
+        return [comp for _ in range(4) for comp in self._color]
+
+    @property
+    def color(self):
+        return self._color
+
+    @color.setter
+    def color(self, v):
+        assert len(v) == 4
+        self._color = v
+        vs = self._color_vals()
+        self.vl.colors = self._color_vals()
 
     @property
     def start(self):
@@ -1771,6 +1857,7 @@ def on_draw():
         gl.glClearColor(0xae / 0xff, 0x51 / 0xff, 0x39 / 0xff, 1.0)
         with lighting.illuminate():
             level.on_draw()
+            diffuse_system.draw()
             RobotSprite.draw_diffuse()
         RobotSprite.draw_emit()
         level.bullet_batch.draw()
@@ -1826,6 +1913,7 @@ yrot = 0.0
 MEAN_FIRE_INTERVAL = 3.0
 
 
+pyglet.clock.schedule_interval(diffuse_system.update, (1.0/30.0))
 pyglet.clock.schedule_interval(default_system.update, (1.0/30.0))
 pyglet.clock.set_fps_limit(None)
 
