@@ -455,11 +455,6 @@ class Game:
         ],
 
         GameState.PRESHOW: [
-            label('placeholder', 64, 0.5),
-            label('will load message dynamically...', 32, 0.4),
-            label('soon ...', 32, 0.35),
-            press_space_to_continue_label,
-            press_escape_to_exit_label,
         ],
 
         GameState.PLAYING: [],
@@ -471,7 +466,7 @@ class Game:
         ],
 
         GameState.LEVEL_COMPLETE: [
-            label('Level Complete', 64, 0.5),
+            label('Level Complete', 48, 0.5),
             press_space_to_continue_label,
             press_escape_to_exit_label,
         ],
@@ -526,23 +521,51 @@ class Game:
         self.state = state
 
         # transition to new state
-        go_to_preshow = False
+        explicit_labels = False
+        auto_transition_to = False
+
         if self.state == GameState.LOAD_LEVEL:
             level.close()
             self.level_counter += 1
             level = Level(f"level{self.level_counter}")
             self.is_final_level = not os.path.isfile(f"maps/level{self.level_counter + 1}.tmx")
             level.start()
-            go_to_preshow = True
+            auto_transition_to = GameState.PRESHOW
 
-        self.draw_labels = list(self.labels[self.state])
+        if self.state == GameState.PRESHOW:
+            try:
+                with open(f"maps/level{self.level_counter}.txt", "rt") as f:
+                    text = f.read()
+            except FileNotFoundError:
+                auto_transition_to = GameState.PLAYING
+                text = None
+
+            if text:
+                font_size = 48
+                advance = 0.1
+                cursor = 0.9
+                explicit_labels = []
+
+                for line in text.split("\n"):
+                    explicit_labels.append(label(line, font_size, cursor))
+                    cursor -= advance
+
+                    font_size = 18
+                    advance = 0.04
+                explicit_labels.append(self.press_space_to_continue_label)
+                explicit_labels.append(self.press_escape_to_exit_label)
+
+        if explicit_labels:
+            self.draw_labels = explicit_labels
+        else:
+            self.draw_labels = list(self.labels[self.state])
         window.set_exclusive_mouse(self.state != GameState.PAUSED)
 
         if player:
             player.on_game_state_change()
 
-        if go_to_preshow:
-            self.transition_to(GameState.PRESHOW)
+        if auto_transition_to:
+            self.transition_to(auto_transition_to)
 
     def on_space(self):
 
