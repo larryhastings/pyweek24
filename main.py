@@ -297,8 +297,16 @@ class Collectable(RobotSprite):
     def on_collision_player(self, player_shape):
         pass
 
+tilemap_object_map = {}
 
-class CollectablePowerup(Collectable):
+def tilemap_object(cls):
+    """Register a class as implementing an object loaded from level data."""
+    tilemap_object_map[cls.__name__] = cls
+    return cls
+
+
+@tilemap_object
+class Powerup(Collectable):
     def on_collision_player(self, player_shape):
         player.powerups_available |= (1<<(self.level + 1))
         self.delete()
@@ -317,21 +325,13 @@ class WideSprite(RobotSprite):
     FILENAMES = 'obj_w'
 
 
-OBJECT_TYPES = {}
-
-
-def big_object(cls):
-    """Register a class as implementing a big object loaded from level data."""
-    OBJECT_TYPES[cls.__name__] = cls
-    return cls
-
 
 class BigRobotSprite(BigSprite):
     def __init__(self, position, angle=0):
         super().__init__(position, self.SPRITE, angle=angle)
 
 
-@big_object
+@tilemap_object
 class Fab(BigRobotSprite):
     SPRITE = 0, 0
 
@@ -361,7 +361,7 @@ class Fab(BigRobotSprite):
         hud = HUD(viewport)
 
 
-@big_object
+@tilemap_object
 class Crate(RobotSprite):
     SPRITE = 5, 2
 
@@ -439,33 +439,33 @@ class Destroyable(WideSprite):
         super().delete()
 
 
-@big_object
+@tilemap_object
 class GasTank(Destroyable):
     SPRITE = 0, 0
 
 
-@big_object
+@tilemap_object
 class Screen1(Destroyable):
     SPRITE = 1, 1
 
 
-@big_object
+@tilemap_object
 class Screen2(Destroyable):
     SPRITE = 2, 0
 
-@big_object
+@tilemap_object
 class Computer1(Destroyable):
     SPRITE = 2, 2
 
-@big_object
+@tilemap_object
 class Computer2(Destroyable):
     SPRITE = 3, 3
 
-@big_object
+@tilemap_object
 class Grille(Destroyable):
     SPRITE = 1, 3
 
-@big_object
+@tilemap_object
 class Fans(Destroyable):
     SPRITE = 0, 2
 
@@ -768,7 +768,7 @@ class Level:
                 gid = tileset.firstgid + tile.id
                 props = {p.name: p.value for p in tile.properties}
                 if props.get('cls'):
-                    types[gid] = OBJECT_TYPES[props['cls']]
+                    types[gid] = tilemap_object_map[props['cls']]
 
         for obj in self.tiles.layers[1].objects:
             cls = types[obj.gid]
@@ -2642,7 +2642,7 @@ class SpinningRobot(RobotBehaviour):
         self.cooldown = bullet.cooldown
 
 
-@big_object
+@tilemap_object
 class Boss1(Boss):
     SPRITE = (2, 2)
 
@@ -2670,7 +2670,7 @@ class Boss1(Boss):
         self.sprite.angle = self.body.angle
 
 
-@big_object
+@tilemap_object
 class Boss2(Boss):
     SPRITE = (2, 0)
 
