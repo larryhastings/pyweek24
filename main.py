@@ -274,7 +274,7 @@ shape_to_collectable = {}
 
 class Collectable(PlayerRobotSprite):
     """Sprites for collectables."""
-    ROW = 5
+    ROW = 4
 
     def __init__(self, position, angle=0):
         super().__init__(position, self.LEVEL)
@@ -1787,7 +1787,7 @@ def on_robot_hit_wall(arbiter, space, data):
 def on_player_got_collectable(arbiter, space, data):
     player_shape = arbiter.shapes[0]
     collectable_shape = arbiter.shapes[1]
-    collectable = shape_to_collectable.get(robot_shape)
+    collectable = shape_to_collectable.get(collectable_shape)
     if collectable:
         collectable.on_collision_player(player_shape)
     return True
@@ -2901,7 +2901,7 @@ def on_key_press(symbol, modifiers):
     symbol = key_remapper.get(symbol, symbol)
 
     # level warp
-    if ((modifiers & (key.MOD_CTRL | key.MOD_SHIFT)) 
+    if ((modifiers & (key.MOD_CTRL | key.MOD_SHIFT))
         and (key.F1 <= symbol <= key.F12)
         and (game.state == GameState.NEW_GAME)
         ):
