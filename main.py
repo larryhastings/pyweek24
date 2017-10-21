@@ -49,7 +49,7 @@ from lighting import LightRenderer, Light
 key = pyglet.window.key
 EVENT_HANDLED = pyglet.event.EVENT_HANDLED
 
-window = pyglet.window.Window()
+window = pyglet.window.Window(600, 800)
 window.set_exclusive_mouse(True)
 window.set_caption("My Sincerest Apologies")
 window.set_icon(pyglet.image.load('gfx/icon32.png'), pyglet.image.load('gfx/icon16.png'))
@@ -1180,7 +1180,7 @@ class Player:
             handled.add(self.movement_opposites[key])
 
         desired_velocity = new_acceleration.normalized() * self.top_speed
-        desired_velocity.rotate(reticle.theta)
+        desired_velocity.rotate(reticle.theta - math.pi / 2)
 
         self.desired_velocity = desired_velocity
         self.acceleration = desired_velocity / self.acceleration_frames
@@ -1243,7 +1243,6 @@ class Player:
         self.position = self.body.position
         sprite_coordinates = level.map_to_world(self.position)
         self.sprite.position = sprite_coordinates
-        viewport.position = self.sprite.position
         player_light.position = self.body.position
         reticle.on_player_moved()
 
@@ -1295,15 +1294,15 @@ class Reticle:
         self.acceleration = 3000
         self.mouse_multiplier = -(math.pi * 2) / self.acceleration
         # in radians
-        self.theta = 0
+        self.theta = math.pi * 0.5
         # in pymunk coordinates
         self.magnitude = 3
-        self.offset = Vec2d(self.magnitude, 0)
+        self.offset = Vec2d(0, self.magnitude)
 
     def on_mouse_motion(self, x, y, dx, dy):
         if dx:
             self.theta += dx * self.mouse_multiplier
-            viewport.angle = self.theta
+            viewport.angle = self.theta - math.pi / 2
             self.offset = Vec2d(self.magnitude, 0)
             self.offset.rotate(self.theta)
             player.sprite.rotation = self.theta
@@ -1317,6 +1316,8 @@ class Reticle:
         self.position = Vec2d(player.position) + self.offset
         sprite_coordinates = level.map_to_world(self.position)
         self.sprite.set_position(*sprite_coordinates)
+
+        viewport.position = self.sprite.position + self.offset * 40
 
     def on_draw(self):
         pass
