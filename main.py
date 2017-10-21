@@ -673,82 +673,88 @@ class Level:
         # because bullets / players / monsters can never wedge into those
         # cracks.
 
-        blob_lists = []
-        for blob in blobs:
-            spackles = set()
-            def add_spackle(x1, y1, x2, y2):
-                new_rect = ((x1, y1), (x2, y2))
-                if new_rect in spackles:
-                    return
-                if new_rect in rect:
-                    return
-                spackles.add(new_rect)
+        def print_blob_in_tiled_coordinates(blob, prefix=""):
+            # this lets you check blobs against the coordinates
+            # in the map that tiled shows you on its status bar
+            a = []
+            print(prefix + "{")
+            for rect in sorted(blob, key=sort_by_reverse_y):
+                (x1, y1), (x2, y2) = rect
+                y1 = (self.tiles.height + 0) - (y1 + 0)
+                y2 = (self.tiles.height + 0) - (y2 + 0)
+                print(f"{prefix}({x1}, {y2}, {x2}, {y1}),")
+            s = ", ".join(a)
+            print(prefix + "}")
 
-            for rect in blob:
-                def single_pass(iterator):
-                    nonlocal rect
-                    spackled_above = spackled_below = False
-                    y_above = rect[0][1] - 1
-                    y_below = rect[1][1]
-                    for x in iterator:
-                        tile_above = self.collision_tile_at(x, y_above)
-                        tile_below = self.collision_tile_at(x, y_below)
-                        if (tile_above and tile_below
-                            and not (spackled_above or spackled_below)):
-                            # the "1x3" tile
-                            add_spackle(x, y_above, x+1, y_below + 1)
-                            break
-                        if tile_above:
-                            # 1x2 tile going up
-                            add_spackle(x, y_above, x+1, y_above + 2)
-                            if spackled_below:
+
+        if 0:
+            blob_lists = []
+            for blob in blobs:
+                spackles = set()
+                def add_spackle(x1, y1, x2, y2):
+                    new_rect = ((x1, y1), (x2, y2))
+                    if new_rect in spackles:
+                        return
+                    if new_rect in rect:
+                        return
+                    spackles.add(new_rect)
+
+                for rect in blob:
+                    def single_pass(iterator):
+                        nonlocal rect
+                        spackled_above = spackled_below = False
+                        y_above = rect[0][1] - 1
+                        y_below = rect[1][1]
+                        for x in iterator:
+                            tile_above = self.collision_tile_at(x, y_above)
+                            tile_below = self.collision_tile_at(x, y_below)
+                            if (tile_above and tile_below
+                                and not (spackled_above or spackled_below)):
+                                # the "1x3" tile
+                                add_spackle(x, y_above, x+1, y_below + 1)
                                 break
-                            spackled_above = True
-                        if tile_below:
-                            # 1x2 tile going down
-                            add_spackle(x, y_below - 1, x + 1, y_below + 1)
-                            if spackled_above:
-                                break
-                            spackled_below = True
+                            if tile_above:
+                                # 1x2 tile going up
+                                add_spackle(x, y_above, x+1, y_above + 2)
+                                if spackled_below:
+                                    break
+                                spackled_above = True
+                            if tile_below:
+                                # 1x2 tile going down
+                                add_spackle(x, y_below - 1, x + 1, y_below + 1)
+                                if spackled_above:
+                                    break
+                                spackled_below = True
 
-                # l-r pass
-                single_pass(range(rect[0][0], rect[1][0]))
-                # rl- pass
-                single_pass(range(rect[1][0] - 1, rect[1][0] - 1, -1))
+                    # l-r pass
+                    single_pass(range(rect[0][0], rect[1][0]))
+                    # rl- pass
+                    single_pass(range(rect[1][0] - 1, rect[1][0] - 1, -1))
 
-            def print_inverted_blob(blob):
-                a = []
-                for rect in sorted(blob, key=sort_by_reverse_y):
-                    (x1, y1), (x2, y2) = rect
-                    y1 = (self.tiles.height + 0) - (y1 + 0)
-                    y2 = (self.tiles.height + 0) - (y2 + 0)
-                    a.append(f"({x1}, {y2}, {x2}, {y1})")
-                s = ", ".join(a)
-                print("{" + s + "}")
+        #     # print("--")
+        #     # print("(printing these in tiled coordinates, YOU'RE WELCOME)")
+        #     # print("blob")
+        #     # print_blob_in_tiled_coordinates(blob)
+        #     # print()
+        #     # print("spackles")
+        #     # print_blob_in_tiled_coordinates(spackles)
+        #     # print()
+        #     new_blob = list(spackles)
+        #     new_blob.extend(blob)
+        #     blob_lists.append(new_blob)
 
-            # print("--")
-            # print("(printing these in tiled coordinates, YOU'RE WELCOME)")
-            # print("blob")
-            # print_inverted_blob(blob)
-            # print()
-            # print("spackles")
-            # print_inverted_blob(spackles)
-            # print()
-            new_blob = list(spackles)
-            new_blob.extend(blob)
-            blob_lists.append(new_blob)
-
-        blobs = blob_lists
+        # blobs = blob_lists
+        blobs = [sorted(list(blob)) for blob in blobs]
 
 
         # print("COLLISION BLOBS")
-        # pprint.pprint(blobs)
         # print("Total collision blobs:", len(blobs))
-        # print("Top-left corner of highest rect in each blob:")
-        # blobs.sort(key=lambda blob:(blob[0][0][1], blob[0][0][0]))
-        # for blob in blobs:
-        #     (x, y), (end_x, end_y) = r_as_tiles(blob[0])
-        #     print(f"    ({x:3}, {y:3})")
+        # print("reminder: blobs include spackle at this point.")
+        # # print("Top-left corner of highest rect in each blob:")
+        # # blobs.sort(key=lambda blob:(blob[0][0][1], blob[0][0][0]))
+        # for i, blob in enumerate(blobs):
+        #     print(f"blob #{i}:")
+        #     print_blob_in_tiled_coordinates(blob, "  ")
 
         self.space = pymunk.Space()
         self.draw_options = pymunk.pyglet_util.DrawOptions()
@@ -1092,9 +1098,14 @@ class Bullet(BulletBase):
     #     self.body.velocity = self.velocity
 
     def on_collision_wall(self, wall_shape):
+        if (wall_shape != None) and (self.last_bounced_wall == wall_shape):
+            # I don't think it ever hits this, now
+            return True
         if self.bounces:
             self.bounces -= 1
-            return
+            self.last_bounced_wall = wall_shape
+            # print(f"bouncing, {self.bounces} bounces left")
+            return True
         super().on_collision_wall(wall_shape)
 
 
@@ -1637,6 +1648,7 @@ class Player:
         # TODO
         # actually use dt here
         # instead of assuming it's 1/60 of a second
+        # print(f"\n\n<<<{dt}>>>")
         self.calculate_speed()
         if self.cooldown > 0:
             self.cooldown -= 1
