@@ -115,6 +115,36 @@ class Smoke:
         self.emitter.template.velocity = (*(-2 * velocity), 0)
 
 
+class Impact:
+    lifetime = 0.5
+
+    color = (0.9, 0.6, 0.2, 0.3)
+
+    spark_tex = pyglet.resource.texture('flare3.png')
+    spark_texturizer = SpriteTexturizer(spark_tex.id)
+
+    sparks = ParticleGroup(
+        controllers=[
+            Lifetime(lifetime),
+            Movement(),
+            ColorBlender([(0, (1,1,1,1)), (lifetime * 0.8, color), (lifetime, (0, 0, 0, 0))]),
+        ],
+        renderer=BillboardRenderer(spark_texturizer)
+    )
+
+    @classmethod
+    def emit(cls, position, velocity):
+        x, y = position + velocity * 0.3
+        emitter = StaticEmitter(
+            template=Particle(
+                position=(x, y, 0),
+                size=(5,) * 3,
+                color=cls.color),
+            deviation=Particle(age=0.2),
+            velocity=domain.Disc((*-2 * velocity, 0), (0, 0, 1), 100))
+
+        emitter.emit(10, cls.sparks)
+
 
 class Kaboom:
     lifetime = 0.6

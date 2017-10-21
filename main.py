@@ -41,7 +41,7 @@ import tmx
 
 #
 
-from particles import Trail, Kaboom, Smoke, diffuse_system
+from particles import Trail, Kaboom, Smoke, diffuse_system, Impact
 from maprenderer import MapRenderer, Viewport
 from lighting import LightRenderer, Light
 
@@ -696,6 +696,7 @@ class BulletBase:
 
     def on_collision_wall(self, shape):
         self.spent = True
+        self.draw_impact()
         self.close()
 
     # we rely on collision filters to prevent
@@ -705,6 +706,7 @@ class BulletBase:
         assert self.shooter != player
         player.on_damage(self.damage)
         self.spent = True
+        self.draw_impact()
         self.close()
 
     def on_collision_robot(self, shape):
@@ -713,10 +715,14 @@ class BulletBase:
         if robot:
             robot.on_damage(self.damage)
             self.spent = True
+            self.draw_impact()
             self.close()
 
     def on_draw(self):
         pass
+
+    def draw_impact(self):
+        Impact.emit(level.map_to_world(self.position), self.velocity)
 
 
 @add_to_bullet_classes
