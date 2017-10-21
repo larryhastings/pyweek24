@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.0" tiledversion="1.0.3" orientation="orthogonal" renderorder="right-up" width="50" height="50" tilewidth="32" tileheight="32" nextobjectid="12">
+ <properties>
+  <property name="ambient" type="color" value="#ff26264c"/>
+ </properties>
  <tileset firstgid="1" source="mars_margin.tsx"/>
  <tileset firstgid="145" source="obj_large.tsx"/>
  <tileset firstgid="161" source="obj_small.tsx"/>

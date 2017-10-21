@@ -365,6 +365,11 @@ class Level:
         self.tilew = self.maprenderer.tilew
         lighting.tilew = self.tilew  # ugh, sorry
 
+        props = {p.name: p.value for p in self.tiles.properties}
+        if 'ambient' in props:
+            a = props['ambient']
+            lighting.ambient = (a.red, a.green, a.blue)
+
     def map_to_world(self, x, y=None):
         if y is None:
             y = x[1]
