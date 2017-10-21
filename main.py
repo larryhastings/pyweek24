@@ -441,6 +441,7 @@ class Destroyable(WideSprite):
 
             level.destroy_one()
             Debris.emit(level.map_to_world(self.body.position))
+            impact_sound.play()
         else:
             pyglet.clock.schedule(self.update)
 
