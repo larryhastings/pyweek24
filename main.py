@@ -592,7 +592,7 @@ class Game:
         # leaving this state
         if (self.state in (GameState.GAME_OVER, GameState.GAME_WON)
             or (self.state == GameState.CONFIRM_EXIT and state == GameState.NEW_GAME)):
-            assert state == GameState.NEW_GAME
+            assert state == GameState.NEW_GAME, f"in {self.state}, expected NEW_GAME, got {state}"
             self.close()
             global game
             game = Game()
@@ -2899,6 +2899,16 @@ key_remapper = {
 @window.event
 def on_key_press(symbol, modifiers):
     symbol = key_remapper.get(symbol, symbol)
+
+    # level warp
+    if ((modifiers & (key.MOD_CTRL | key.MOD_SHIFT)) 
+        and (key.F1 <= symbol <= key.F12)
+        and (game.state == GameState.NEW_GAME)
+        ):
+        game.level_counter = symbol - key.F1
+        # print(f"warping to level {game.level_counter + 1}")
+        game.transition_to(GameState.LOAD_LEVEL)
+        return
 
     # calling player manually instead of stacking event handlers
     # so we can benefit from remapped keys
