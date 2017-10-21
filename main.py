@@ -311,7 +311,9 @@ def tilemap_object(cls):
 
 class Powerup(Collectable):
     def on_collision_player(self, player_shape):
-        player.powerups_available |= (1<<(self.level + 1))
+        bit = self.level + 1
+        player.powerups_available |= (1<<(bit-1))
+        player.toggle_weapon(bit)
         self.delete()
         level.maybe_level_is_finished()
 
@@ -327,7 +329,7 @@ class Powerup2(Powerup):
     LEVEL = 2
 @tilemap_object
 class Powerup3(Powerup):
-    LEVEL = 2
+    LEVEL = 3
 
 
 class BigSprite(RobotSprite):
@@ -1939,7 +1941,7 @@ class Player:
         # how many 1/120th of a second frames should it take to get to full speed
         self.acceleration_frames = 30
 
-        self.powerups_available = 3
+        self.powerups_available = 0
 
         self.pause_pressed_keys = []
         self.pause_released_keys = []
@@ -1961,6 +1963,7 @@ class Player:
         self.shooting = False
         self.cooldown = 0
         self.weapon_index = 0
+        self.weapon = weapon_matrix[0]
 
         self.health = self.MAX_HP
         self.lives = self.INITIAL_LIVES
@@ -1994,6 +1997,7 @@ class Player:
 
     def toggle_weapon(self, bit):
         i = 1 << (bit - 1)
+        print("bit", bit, "i", i)
         currently_enabled = bool(self.weapon_index & i)
         if currently_enabled:
             # disable
@@ -2008,9 +2012,9 @@ class Player:
             hud.set_boss_weapon(not currently_enabled)
         hud.set_weapon_enabled(bit - 1, not currently_enabled)
 
-        weapon = weapon_matrix[index]
+        self.weapon = weapon_matrix[index]
         # print(f"Weapon: {weapon}\n")
-        self.sprite.level = weapon.player_level
+        self.sprite.level = self.weapon.player_level
         self.weapon_index = index
 
     def calculate_speed(self):
@@ -2109,7 +2113,7 @@ class Player:
         if self.cooldown > 0:
             self.cooldown -= 1
         elif self.shooting:
-            modifier = weapon_matrix[self.weapon_index]
+            modifier = self.weapon
             bullet = modifier.fire(self, reticle.offset)
             self.cooldown = bullet.cooldown
 
