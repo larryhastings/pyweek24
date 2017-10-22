@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.0" tiledversion="1.0.3" orientation="orthogonal" renderorder="right-up" width="64" height="64" tilewidth="32" tileheight="32" nextobjectid="30">
+<map version="1.0" tiledversion="1.0.3" orientation="orthogonal" renderorder="right-up" width="64" height="64" tilewidth="32" tileheight="32" nextobjectid="32">
  <tileset firstgid="1" source="mars_margin.tsx"/>
  <tileset firstgid="145" source="obj_wide.tsx"/>
  <tileset firstgid="177" source="obj_large.tsx"/>
@@ -31,12 +31,13 @@
   <object id="20" gid="214" x="1293" y="608" width="32" height="32"/>
   <object id="21" gid="214" x="1334" y="636" width="32" height="32"/>
   <object id="22" gid="214" x="1465" y="821" width="32" height="32"/>
-  <object id="23" gid="150" x="1428" y="729" width="64" height="32"/>
+  <object id="23" gid="150" x="1428" y="779" width="64" height="32"/>
   <object id="24" gid="145" x="1248" y="1664" width="64" height="32"/>
   <object id="25" gid="214" x="1792" y="1846" width="32" height="32"/>
   <object id="26" gid="214" x="1837" y="1802" width="32" height="32"/>
   <object id="27" gid="214" x="1609" y="1492" width="32" height="32"/>
   <object id="28" gid="214" x="1637" y="1456" width="32" height="32"/>
   <object id="29" gid="179" x="1621" y="1674" width="64" height="64"/>
+  <object id="30" gid="235" x="1441" y="723" width="32" height="32"/>
  </objectgroup>
 </map>

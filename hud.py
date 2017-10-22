@@ -30,6 +30,7 @@ class HUD:
                 img, x, y,
                 batch=self.batch,
             )
+            sprite.visible = False
             self.weapons.append(sprite)
             if t < 4:
                 self.set_weapon_enabled(t, False)
@@ -66,6 +67,7 @@ class HUD:
         self.weapons[n].visible = visible
 
     def set_weapon_enabled(self, n, enabled):
+        self.set_weapon_visible(n, True)
         w = self.weapons[n]
         if enabled:
             w.opacity = 255

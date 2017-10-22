@@ -312,8 +312,9 @@ def tilemap_object(cls):
 
 class Powerup(Collectable):
     def on_collision_player(self, player_shape):
+        global powerups_available
         bit = self.level + 1
-        player.powerups_available |= (1<<(bit-1))
+        powerups_available |= (1<<(bit-1))
         player.toggle_weapon(bit)
         self.delete()
         level.maybe_level_is_finished()
@@ -380,6 +381,9 @@ class Fab(BigRobotSprite):
         player = Player()
         player.on_player_moved()
         hud = HUD(viewport)
+        for bit in range(4):
+            visible = powerups_available & (1 << bit)
+            hud.set_weapon_visible(bit, visible)
 
 
 @tilemap_object
@@ -578,6 +582,8 @@ class Game:
     }
 
     def __init__(self):
+        global powerups_available
+        powerups_available = 0
         self.lives = 5
         self.level = 0
 
@@ -1919,6 +1925,8 @@ for i in range(16):
     weapon.player_level = player_level
     weapon_matrix.append(weapon)
 
+powerups_available = 0
+
 
 class Player:
     MAX_HP = 400
@@ -1943,8 +1951,6 @@ class Player:
         self.top_speed = 15
         # how many 1/120th of a second frames should it take to get to full speed
         self.acceleration_frames = 30
-
-        self.powerups_available = 0
 
         self.pause_pressed_keys = []
         self.pause_released_keys = []
@@ -2007,7 +2013,7 @@ class Player:
             index = self.weapon_index & ~i
         else:
             # enable
-            if not (self.powerups_available & i):
+            if not (powerups_available & i):
                 return
             index = self.weapon_index | i
 
