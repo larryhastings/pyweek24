@@ -290,10 +290,11 @@ class Collectable(PlayerRobotSprite):
         collectables.add(self)
 
     def delete(self):
-        collectables.discard(self)
-        level.space.remove(self.body, self.shape)
-        del shape_to_collectable[self.shape]
-        super().delete()
+        if self in collectables:
+            collectables.discard(self)
+            level.space.remove(self.body, self.shape)
+            del shape_to_collectable[self.shape]
+            super().delete()
 
     def close(self):
         self.delete()
@@ -3046,7 +3047,7 @@ def on_update(dt):
 pyglet.clock.schedule_interval(on_update, 1/ENGINE_TICKS_IN_HERTZ)
 pyglet.clock.schedule_interval(diffuse_system.update, (1.0/30.0))
 pyglet.clock.schedule_interval(default_system.update, (1.0/30.0))
-pyglet.clock.set_fps_limit(30)
+pyglet.clock.set_fps_limit(60)
 
 RobotSprite.load()
 BigSprite.load()
