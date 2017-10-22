@@ -605,13 +605,6 @@ class Game:
         global level
 
         # leaving this state
-        if (self.state in (GameState.GAME_OVER, GameState.GAME_WON)
-            or (self.state == GameState.CONFIRM_EXIT and state == GameState.NEW_GAME)):
-            assert state == GameState.NEW_GAME, f"in {self.state}, expected NEW_GAME, got {state}"
-            self.close()
-            global game
-            game = Game()
-            return
         if state == GameState.CONFIRM_EXIT:
             self.old_state = self.state
 
@@ -620,6 +613,12 @@ class Game:
         # transition to new state
         explicit_labels = False
         auto_transition_to = False
+
+        if self.state == GameState.NEW_GAME:
+            self.close()
+            global game
+            game = Game()
+            return
 
         if self.state == GameState.LOAD_LEVEL:
             level.close()
