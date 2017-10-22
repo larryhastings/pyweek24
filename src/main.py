@@ -2135,6 +2135,8 @@ class Player:
         # )
 
     def on_damage(self, damage):
+        if not self.alive:
+            return
         self.health -= damage
         hud.set_health(max(self.health / self.MAX_HP, 0))
         if self.health <= 0:
