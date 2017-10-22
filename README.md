@@ -33,37 +33,47 @@ Controls
 --------
 
 W A S D moves (strafes)
+
 Move mouse left-right to rotate
+
 Left mouse button to fire
-Space to pause
-Esc to quit
+
 1 2 3 4 activates and deactivates powerups (see below)
+
+Space to pause
+
+Esc to quit
 
 
 Powerups
 --------
 
-When you pick up powerups, you can press
-1 through 4 to activate or deactivate them:
+There are four powerups in the game.
+You'll find them as blue tiles on the ground--
+just run over them to pick them up.
+
+Once you've got a powerup, you have it available
+for the rest of the game.  But you don't have
+to have it on all the time!  You can press
+a number key to activate or deactivate a powerup:
 
     1 = triple shot
-
     2 = damage boost shot
-
     3 = bouncy shot
-
     4 = railgun shot
 
-Note that you can mix and match!  Toggle
-1 and 4 to turn on triple railgun shots!
+And you can even mix and match!  Turn on
+only 1 and 4 to activate triple railgun shots!
 
 Different powerups will have different
-combined effects.  For example, amage
+combined effects.  For example, damage
 boost needs more cooldown time, and the
-shots move more slowly too.
+shots move more slowly too.  Triple shot
+fires more quickly but the shots are much
+less powerful
 
-And once you get all four powerups,
-when you turn them all on, you get
+Once you get all four powerups,
+if you turn them all on at once, you get
 a special weapon just for the end-game
 boss...!
 

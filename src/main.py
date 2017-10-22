@@ -2006,7 +2006,6 @@ class Player:
 
     def toggle_weapon(self, bit):
         i = 1 << (bit - 1)
-        print("bit", bit, "i", i)
         currently_enabled = bool(self.weapon_index & i)
         if currently_enabled:
             # disable
