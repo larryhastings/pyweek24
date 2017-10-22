@@ -426,6 +426,9 @@ class Destroyable(WideSprite):
         level.space.add(self.body, self.shape)
         shape_to_robot[self.shape] = self
 
+    def on_collision_wall(self, shape):
+        pass
+
     def on_damage(self, damage):
         pyglet.clock.unschedule(self.update)
 
