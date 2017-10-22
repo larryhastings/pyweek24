@@ -14,6 +14,11 @@ Happily, he knew how to construct *you*, a simple fighting
 robot.  It's your job to clean out each area!
 
 
+Written by Daniel Pope and Larry Hastings
+for PyWeek #24.
+Copyright 2017 Daniel Pope and Larry Hastings.
+
+
 Requirements
 ------------
 
@@ -62,6 +67,14 @@ when you turn them all on, you get
 a special weapon just for the end-game
 boss...!
 
-Written by Daniel Pope and Larry Hastings
-for PyWeek #24.
-Copyright 2017 Daniel Pope and Larry Hastings.
+
+Your HUD
+--------
+
+Along the left shows your current active powerups,
+with a number to remind you of the correct key.
+
+On the right is your current health.  Above that
+are indicators for how many lives you have left.
+
+You start with 5 lives.  Good luck!
