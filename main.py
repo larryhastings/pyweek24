@@ -285,8 +285,6 @@ class Collectable(PlayerRobotSprite):
         self.shape.collision_type = CollisionType.COLLECTABLE
         level.space.add(self.body, self.shape)
         shape_to_collectable[self.shape] = self
-        if hasattr(self, "update"):
-            pyglet.clock.schedule(self.update)
         collectables.add(self)
 
     def delete(self):
@@ -407,6 +405,7 @@ class Crate(RobotSprite):
         self.body.velocity *= 0.05 ** dt
 
     def delete(self):
+        pyglet.clock.unschedule(self.update)
         level.space.remove(self.body, self.shape)
         super().delete()
 
@@ -461,6 +460,8 @@ class Destroyable(WideSprite):
             pyglet.clock.unschedule(self.update)
 
     def delete(self):
+        pyglet.clock.unschedule(self.update)
+        level.objects.remove(self)
         del shape_to_robot[self.shape]
         level.space.remove(self.body, self.shape)
         super().delete()
@@ -777,8 +778,7 @@ class Level:
         hud = player = reticle = None
 
         for o in tuple(self.objects):
-            if hasattr(o, "close"):
-                o.close()
+            o.delete()
         self.objects.clear()
 
     def on_robot_destroyed(self, robot):
