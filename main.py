@@ -441,6 +441,7 @@ class Destroyable(WideSprite):
 
             level.destroy_one()
             Debris.emit(level.map_to_world(self.body.position))
+            impact_sound.play()
         else:
             pyglet.clock.schedule(self.update)
 
@@ -2908,22 +2909,22 @@ def key_space(pressed):
 
 @keypress(key._1)
 def key_1(pressed):
-    if pressed:
+    if pressed and player:
         player.toggle_weapon(1)
 
 @keypress(key._2)
 def key_2(pressed):
-    if pressed:
+    if pressed and player:
         player.toggle_weapon(2)
 
 @keypress(key._3)
 def key_3(pressed):
-    if pressed:
+    if pressed and player:
         player.toggle_weapon(3)
 
 @keypress(key._4)
 def key_4(pressed):
-    if pressed:
+    if pressed and player:
         player.toggle_weapon(4)
 
 
