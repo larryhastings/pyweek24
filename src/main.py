@@ -310,10 +310,7 @@ def tilemap_object(cls):
 
 class Powerup(Collectable):
     def on_collision_player(self, player_shape):
-        global powerups_available
-        bit = self.level + 1
-        powerups_available |= (1<<(bit-1))
-        player.toggle_weapon(bit)
+        player.give_weapon(self.level + 1)
         self.delete()
         level.maybe_level_is_finished()
 
@@ -378,9 +375,9 @@ class Fab(BigRobotSprite):
 
         player = Player()
         player.on_player_moved()
-        hud = HUD(viewport)
+        hud = HUD(viewport, player)
         for bit in range(4):
-            visible = powerups_available & (1 << bit)
+            visible = game.powerups_available & (1 << bit)
             hud.set_weapon_visible(bit, visible)
 
 
@@ -586,10 +583,9 @@ class Game:
     }
 
     def __init__(self):
-        global powerups_available
-        powerups_available = 0
         self.lives = 5
         self.level = 0
+        self.powerups_available = 0
 
         self.state = GameState.NEW_GAME
         self.draw_labels = self.labels[self.state]
@@ -723,6 +719,30 @@ class Game:
     def on_draw(self):
         for label in self.draw_labels:
             label.draw()
+
+
+
+def read_powerups_from_map(tmx_path):
+    # print("reading powerups from map", tmx_path)
+    tiles = tmx.TileMap.load(tmx_path)
+    types = {}
+    powerups = 0
+    for tileset in tiles.tilesets:
+        for tile in tileset.tiles:
+            props = {p.name: p.value for p in tile.properties}
+            cls = props.get('cls')
+            if cls:
+                gid = tileset.firstgid + tile.id
+                types[gid] = cls
+
+    for obj in tiles.layers[1].objects:
+        cls = types.get(obj.gid, 0)
+        if cls:
+            if cls.startswith("Powerup"):
+                bit = int(cls[len("Powerup"):])
+                powerups |= 1 << bit
+    # print("powerup bits found", powerups)
+    return powerups
 
 
 class Level:
@@ -1927,12 +1947,11 @@ for i in range(16):
     weapon.player_level = player_level
     weapon_matrix.append(weapon)
 
-powerups_available = 0
 
 
 class Player:
     MAX_HP = 400
-    INITIAL_LIVES = 3
+    INITIAL_LIVES = 5
 
     def __init__(self):
         self.cooldown_range = (10, 12)
@@ -2007,6 +2026,7 @@ class Player:
         self.sprite = None
 
     def toggle_weapon(self, bit):
+        assert 1 <= bit <= 4
         i = 1 << (bit - 1)
         currently_enabled = bool(self.weapon_index & i)
         if currently_enabled:
@@ -2014,7 +2034,7 @@ class Player:
             index = self.weapon_index & ~i
         else:
             # enable
-            if not (powerups_available & i):
+            if not (game.powerups_available & i):
                 return
             index = self.weapon_index | i
 
@@ -2026,6 +2046,11 @@ class Player:
         # print(f"Weapon: {weapon}\n")
         self.sprite.level = self.weapon.player_level
         self.weapon_index = index
+
+    def give_weapon(self, bit):
+        assert 1 <= bit <= 4
+        game.powerups_available |= (1<<(bit-1))
+        self.toggle_weapon(bit)
 
     def calculate_speed(self):
         if self.velocity != self.desired_velocity:
@@ -2944,22 +2969,42 @@ key_remapper = {
     key.S: key.DOWN,
     key.A: key.LEFT,
     key.D: key.RIGHT,
+    # unshift the shifted keys
+    key.EXCLAMATION: key._1,
+    key.AT: key._2,
+    key.POUND: key._3,
+    key.DOLLAR: key._4,
     }
 
+
+import pyglet.window.key
 
 @window.event
 def on_key_press(symbol, modifiers):
     symbol = key_remapper.get(symbol, symbol)
 
     # level warp
-    if ((modifiers & (key.MOD_CTRL | key.MOD_SHIFT))
-        and (key.F1 <= symbol <= key.F12)
-        and (game.state == GameState.NEW_GAME)
-        ):
-        game.level_counter = symbol - key.F1
-        # print(f"warping to level {game.level_counter + 1}")
-        game.transition_to(GameState.LOAD_LEVEL)
-        return
+    if (modifiers & (key.MOD_CTRL | key.MOD_SHIFT)):
+        if key.F1 <= symbol <= key.F12:
+            level = symbol - key.F1 + 1
+            # print(f"warping to level {level}")
+            for i in range(1, level):
+                game.powerups_available |= read_powerups_from_map(f"maps/level{i}.tmx")
+            game.level_counter = level - 1
+            game.transition_to(GameState.LOAD_LEVEL)
+            return
+        if key._1 <= symbol <= key._4:
+            bit = symbol + 1 - key._1
+            # print("give weapon bit", bit)
+            if player:
+                player.give_weapon(bit)
+            return
+        if symbol == key.PLUS:
+            if player:
+                player.lives += 1
+                if hud:
+                    hud.set_lives(player.lives)
+            return
 
     # calling player manually instead of stacking event handlers
     # so we can benefit from remapped keys

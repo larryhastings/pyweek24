@@ -9,8 +9,10 @@ class HUD:
 
     image = pyglet.resource.image(f'hud.png')
 
-    def __init__(self, viewport):
+    def __init__(self, viewport, player):
         self.viewport = viewport
+        self.player = player
+
         self.batch = pyglet.graphics.Batch()
 
         self.tiles = pyglet.image.ImageGrid(
@@ -58,7 +60,7 @@ class HUD:
         self.life_img = self.image.get_region(128, 0, 64, 20)
 
         self.lives = []
-        self.set_lives(3)
+        self.set_lives(player.lives)
 
     def close(self):
         pass
