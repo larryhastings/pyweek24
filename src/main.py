@@ -62,6 +62,7 @@ window.set_exclusive_mouse(True)
 window.set_caption("My Sincerest Apologies")
 window.set_icon(pyglet.image.load('gfx/icon32.png'), pyglet.image.load('gfx/icon16.png'))
 
+pyglet.font.add_file("fonts/checkbk0.ttf")
 
 
 viewport = Viewport(*window.get_size())
