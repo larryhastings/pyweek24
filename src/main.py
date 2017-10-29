@@ -2971,10 +2971,10 @@ key_remapper = {
     key.A: key.LEFT,
     key.D: key.RIGHT,
     # unshift the shifted keys
-    key.EXCLAMATION: key._1,
-    key.AT: key._2,
-    key.POUND: key._3,
-    key.DOLLAR: key._4,
+    # key.EXCLAMATION: key._1,
+    # key.AT: key._2,
+    # key.POUND: key._3,
+    # key.DOLLAR: key._4,
     }
 
 
@@ -2985,7 +2985,7 @@ def on_key_press(symbol, modifiers):
     symbol = key_remapper.get(symbol, symbol)
 
     # level warp
-    if (modifiers & (key.MOD_CTRL | key.MOD_SHIFT)):
+    if (modifiers & (key.MOD_CTRL)):
         if key.F1 <= symbol <= key.F12:
             level = symbol - key.F1 + 1
             # print(f"warping to level {level}")
