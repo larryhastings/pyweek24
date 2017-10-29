@@ -1511,10 +1511,15 @@ class Bullet(BulletBase):
         self.shape.filter = shooter.bullet_collision_filter
         self.shape.elasticity = 1.0
 
+        # so bullets die out
+        self.energy = 1.0
+        self.initial_speed = self.velocity.length
+
         self.body.velocity = self.velocity
         level.space.add(self.body, self.shape)
         self.create_visuals()
         self.on_update(0)
+
 
     def _fire(self, shooter, vector, modifier):
         if modifier.shape == BulletShape.BULLET_SHAPE_TINY:
@@ -1551,11 +1556,13 @@ class Bullet(BulletBase):
 
     def update_visuals(self):
         self.light.position = self.position
+        self.light.color = tuple(comp * self.energy for comp in self.light_color)
 
         sprite_coord = level.map_to_world(self.position)
         # move
         # sprite_coord -= Vec2d(64, 64)
         self.sprite.position = sprite_coord
+        self.sprite.scale = self.energy
 
     def destroy_visuals(self):
         self.sprite.delete()
@@ -1568,6 +1575,13 @@ class Bullet(BulletBase):
         self.destroy_visuals()
 
     def on_update(self, dt):
+        speed = self.body.velocity.length
+        clamped_speed = max(self.initial_speed - speed, 0)
+        self.energy -= clamped_speed * 0.1 * dt
+        if self.energy < 0:
+            self.close()
+            return
+
         old = self.position
         self.position = Vec2d(self.body.position)
         self.update_visuals()
