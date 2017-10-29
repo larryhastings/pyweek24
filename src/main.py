@@ -135,6 +135,7 @@ class CollisionType(IntEnum):
     ROBOT = 8
     ROBOT_BULLET = 16
     COLLECTABLE = 32
+    INSTADEATH = 64
 
 
 
@@ -427,6 +428,18 @@ class Destroyable(WideSprite):
     def on_collision_wall(self, shape):
         pass
 
+    def on_died(self):
+        self.delete()
+
+        v = Vec2d(0.5, 0)
+        v0 = Vec2d(0, 0)
+        for pos in (-v, v0, v):
+            spawn_robot(self.body.position + v0)
+
+        level.destroy_one()
+        Debris.emit(level.map_to_world(self.body.position))
+        impact_sound.play()
+
     def on_damage(self, damage):
         pyglet.clock.unschedule(self.update)
 
@@ -437,16 +450,7 @@ class Destroyable(WideSprite):
             self.scalev -= d * 2
 
         if abs(self.scalev) > 2.2:
-            self.delete()
-
-            v = Vec2d(0.5, 0)
-            v0 = Vec2d(0, 0)
-            for pos in (-v, v0, v):
-                spawn_robot(self.body.position + v0)
-
-            level.destroy_one()
-            Debris.emit(level.map_to_world(self.body.position))
-            impact_sound.play()
+            self.on_died()
         else:
             pyglet.clock.schedule(self.update)
 
@@ -1183,7 +1187,8 @@ class Level:
 
         # filter only lets through things that cares about
         # e.g. "player collision filter" masks out things the player shouldn't collide with
-        self.wall_only_collision_filter = pymunk.ShapeFilter(mask=CollisionType.WALL &  ~CollisionType.PLAYER)
+        self.wall_only_collision_filter = pymunk.ShapeFilter(mask=
+            (CollisionType.WALL | CollisionType.INSTADEATH) & ~CollisionType.PLAYER)
 
         self.player_collision_filter = pymunk.ShapeFilter(
             group=CollisionType.PLAYER,
@@ -1202,13 +1207,16 @@ class Level:
             mask=pymunk.ShapeFilter.ALL_MASKS ^ (CollisionType.ROBOT | CollisionType.ROBOT_BULLET))
 
         for (type1, type2, fn) in (
-            (CollisionType.PLAYER_BULLET, CollisionType.WALL,   on_player_bullet_hit_wall),
-            (CollisionType.PLAYER_BULLET, CollisionType.ROBOT,  on_player_bullet_hit_robot),
-            (CollisionType.ROBOT_BULLET,  CollisionType.WALL,   on_robot_bullet_hit_wall),
-            (CollisionType.ROBOT_BULLET,  CollisionType.PLAYER, on_robot_bullet_hit_player),
+            (CollisionType.PLAYER_BULLET, CollisionType.WALL,        on_player_bullet_hit_wall),
+            (CollisionType.PLAYER_BULLET, CollisionType.INSTADEATH,  on_player_bullet_hit_wall),
+            (CollisionType.PLAYER_BULLET, CollisionType.ROBOT,       on_player_bullet_hit_robot),
+            (CollisionType.ROBOT_BULLET,  CollisionType.WALL,        on_robot_bullet_hit_wall),
+            (CollisionType.ROBOT_BULLET,  CollisionType.INSTADEATH,  on_robot_bullet_hit_wall),
+            (CollisionType.ROBOT_BULLET,  CollisionType.PLAYER,      on_robot_bullet_hit_player),
 
-            (CollisionType.ROBOT,         CollisionType.WALL,   on_robot_hit_wall),
-            (CollisionType.PLAYER,        CollisionType.COLLECTABLE,   on_player_got_collectable),
+            (CollisionType.ROBOT,         CollisionType.WALL,        on_robot_hit_wall),
+            (CollisionType.ROBOT,         CollisionType.INSTADEATH,  on_robot_hit_instadeath),
+            (CollisionType.PLAYER,        CollisionType.COLLECTABLE, on_player_got_collectable),
             ):
             ch = self.space.add_collision_handler(int(type1), int(type2))
             ch.pre_solve = fn
@@ -1231,12 +1239,29 @@ class Level:
                 shape.elasticity = 1.0
                 self.space.add(shape)
 
-        # finally, draw a square-donut-shaped collision region
-        # around the entire level, to trap the player inside.
-        # (the boxes overlap in the four corners but this is harmless for static geometry.)
+        #
+        # create boundary walls around the world
+        #
+        # IIIIIIIIIIIIIIIIIIIIIIIIIII
+        # IIIIIIIIIIIIIIIIIIIIIIIIIII
+        # IIIIwwwwwwwwwwwwwwwwwwwIIII
+        # IIIIw                 wIIII
+        # IIIIw level is here   wIIII
+        # IIIIw                 wIIII
+        # IIIIwwwwwwwwwwwwwwwwwwwIIII
+        # IIIIIIIIIIIIIIIIIIIIIIIIIII
+        # IIIIIIIIIIIIIIIIIIIIIIIIIII
+        #
+        # there's a ring of wall 1-tile thick
+        # immediately around the level
+        # then a thick ring of instadeath around that
+        #
+        # these functions all express rects as tuples of two Vec2ds
+        #   (upper_left, lower_right)
+        # so to deconstruct it completely
+        #   ((left, top), (right, bottom))
 
-        # chipmunk coordinate space is *pixel space*
-        def add_box_from_bb(rect):
+        def add_box_from_bb(rect, collision_type):
             start, end = rect
             width = end.x - start.x
             height = end.y - start.y
@@ -1247,18 +1272,47 @@ class Level:
             body.position = Vec2d(center_x, center_y)
             shape = pymunk.Poly.create_box(body, (width, height))
             # print(f"bounding box, center {center_x} {center_y} width {width} height {height}")
-            shape.collision_type = CollisionType.WALL
+            shape.collision_type = collision_type
             shape.elasticity = 1.0
             self.space.add(body, shape)
 
-        boundary_delta = Vec2d(100, 100)
-        boundary_upper_left = self.upper_left - boundary_delta
-        boundary_lower_right = self.lower_right + boundary_delta
+        def make_ring(outside, inside, collision_type):
+            add_box_from_bb(
+                (outside[0],
+                 Vec2d(outside[1].x, inside[0].y)),
+                collision_type)
+            add_box_from_bb(
+                (Vec2d(outside[0].x, inside[0].y),
+                 Vec2d(inside[0].x, inside[1].y)),
+                collision_type)
+            add_box_from_bb(
+                (Vec2d(inside[1].x, inside[0].y),
+                 Vec2d(outside[1].x, inside[1].y)),
+                collision_type)
+            add_box_from_bb(
+                (Vec2d(outside[0].x, inside[1].y),
+                 outside[1]),
+                collision_type)
 
-        add_box_from_bb((boundary_upper_left, Vec2d(boundary_lower_right.x, self.upper_left.y)))
-        add_box_from_bb((boundary_upper_left, Vec2d(self.upper_left.x, boundary_lower_right.y)))
-        add_box_from_bb((Vec2d(self.lower_right.x, boundary_upper_left.y), boundary_lower_right))
-        add_box_from_bb((Vec2d(boundary_upper_left.x, self.lower_right.y), boundary_lower_right))
+            # add_box_from_bb((boundary_upper_left, Vec2d(boundary_lower_right.x, self.upper_left.y)), collision_type)
+            # add_box_from_bb((boundary_upper_left, Vec2d(self.upper_left.x, boundary_lower_right.y)), collision_type)
+            # add_box_from_bb((Vec2d(self.lower_right.x, boundary_upper_left.y), boundary_lower_right), collision_type)
+            # add_box_from_bb((Vec2d(boundary_upper_left.x, self.lower_right.y), boundary_lower_right), collision_type)
+
+        playfield_rect = (self.upper_left, self.lower_right)
+
+        wall_delta = Vec2d(1, 1)
+        wall_upper_left = self.upper_left - wall_delta
+        wall_lower_right = self.lower_right + wall_delta
+        wall_rect = (wall_upper_left, wall_lower_right)
+
+        instadeath_delta = Vec2d(100, 100)
+        instadeath_upper_left = self.upper_left - instadeath_delta
+        instadeath_lower_right = self.lower_right + instadeath_delta
+        instadeath_rect = (instadeath_upper_left, instadeath_lower_right)
+
+        make_ring(wall_rect, playfield_rect, CollisionType.WALL)
+        make_ring(instadeath_rect, wall_rect, CollisionType.INSTADEATH)
 
     def on_draw(self):
         self.maprenderer.render()
@@ -1827,6 +1881,23 @@ def on_player_got_collectable(arbiter, space, data):
     return True
 
 
+def on_robot_hit_instadeath(arbiter, space, data):
+    robot_shape = arbiter.shapes[0]
+    wall_shape = arbiter.shapes[1]
+    robot = shape_to_robot.get(robot_shape)
+    if robot:
+        robot.on_collision_instadeath(wall_shape)
+    return True
+
+def on_player_hit_instadeath(arbiter, space, data):
+    player_shape = arbiter.shapes[0]
+    wall_shape = arbiter.shapes[1]
+    player.on_collision_instadeath(wall_shape)
+    return True
+
+
+
+
 
 def bullet_collision(entity, arbiter):
     bullet_shape = arbiter.shapes[0]
@@ -2195,6 +2266,8 @@ class Player:
         else:
             game.transition_to(GameState.GAME_OVER)
 
+    def on_collision_instadeath(self):
+        return self.on_died()
 
 class Reticle:
     def __init__(self):
@@ -2610,6 +2683,9 @@ class Robot:
         for fn in self.on_collision_wall_callbacks:
             if fn(wall_shape):
                 return
+
+    def on_collision_instadeath(self, shape):
+        return self.on_died()
 
 
 class Boss(Robot):
