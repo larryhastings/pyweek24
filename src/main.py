@@ -375,7 +375,6 @@ class Fab(BigRobotSprite):
 
         reticle = Reticle()
 
-        print("NEW PLAYER OBJECT")
         player = Player()
         player.on_player_moved()
         hud = HUD(viewport, player)
@@ -1864,12 +1863,11 @@ class RailgunBullet(BulletBase):
     def _fire(self, shooter, vector, modifier):
         super()._fire(shooter, vector, modifier)
 
-        # TODO
-        # robots can't fire railguns yet
-        assert shooter is player
-
-        offset = reticle.offset.normalized() * player.radius
-        start_point = shooter.position + offset
+        if shooter is player:
+            offset = reticle.offset.normalized() * player.radius
+            start_point = shooter.position + offset
+        else:
+            start_point = shooter.position
 
         for i in range(modifier.bounces + 1):
             hit, bounce_vector = self.fire_railgun_ray(
