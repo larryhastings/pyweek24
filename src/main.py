@@ -58,7 +58,6 @@ key = pyglet.window.key
 EVENT_HANDLED = pyglet.event.EVENT_HANDLED
 
 window = pyglet.window.Window(600, 800)
-window.set_exclusive_mouse(True)
 window.set_caption("My Sincerest Apologies")
 window.set_icon(pyglet.image.load('gfx/icon32.png'), pyglet.image.load('gfx/icon16.png'))
 
@@ -106,7 +105,8 @@ def play_music(filename):
             )
 
 
-play_music('bensound-scifi.mp3')
+if not os.path.exists(os.path.expanduser("~/my.sincerest.apologies.quiet")):
+    play_music('bensound-scifi.mp3')
 
 
 def _clamp(c, other):
@@ -375,6 +375,7 @@ class Fab(BigRobotSprite):
 
         reticle = Reticle()
 
+        print("NEW PLAYER OBJECT")
         player = Player()
         player.on_player_moved()
         hud = HUD(viewport, player)
@@ -782,11 +783,15 @@ class Level:
         self.space = pymunk.Space()
         self.draw_options = pymunk.pyglet_util.DrawOptions()
         self.space.gravity = (0.0, 0.0)
+
         self.construct_collision_geometry()
+
         self.objects = set()
         self.destroyables = 0
-
         self.spawn_map_objects()
+
+        self.paint_unreachable_with_instadeath()
+
 
     def close(self):
         global hud
@@ -887,6 +892,22 @@ class Level:
             y = x[1]
             x = x[0]
         return Vec2d(x / self.tilew, y / self.tilew)
+
+    def add_box_from_bb(self, rect, collision_type):
+        start, end = rect
+        width = end.x - start.x
+        height = end.y - start.y
+        center_x = start.x + (width >> 1)
+        center_y = start.y + (height >> 1)
+
+        body = pymunk.Body(body_type=pymunk.Body.STATIC)
+        body.position = Vec2d(center_x, center_y)
+        shape = pymunk.Poly.create_box(body, (width, height))
+        # print(f"bounding box, center {center_x} {center_y} width {width} height {height}")
+        shape.collision_type = collision_type
+        shape.elasticity = 1.0
+        self.space.add(body, shape)
+
 
     def construct_collision_geometry(self):
         """
@@ -1261,35 +1282,20 @@ class Level:
         # so to deconstruct it completely
         #   ((left, top), (right, bottom))
 
-        def add_box_from_bb(rect, collision_type):
-            start, end = rect
-            width = end.x - start.x
-            height = end.y - start.y
-            center_x = start.x + (width >> 1)
-            center_y = start.y + (height >> 1)
-
-            body = pymunk.Body(body_type=pymunk.Body.STATIC)
-            body.position = Vec2d(center_x, center_y)
-            shape = pymunk.Poly.create_box(body, (width, height))
-            # print(f"bounding box, center {center_x} {center_y} width {width} height {height}")
-            shape.collision_type = collision_type
-            shape.elasticity = 1.0
-            self.space.add(body, shape)
-
         def make_ring(outside, inside, collision_type):
-            add_box_from_bb(
+            self.add_box_from_bb(
                 (outside[0],
                  Vec2d(outside[1].x, inside[0].y)),
                 collision_type)
-            add_box_from_bb(
+            self.add_box_from_bb(
                 (Vec2d(outside[0].x, inside[0].y),
                  Vec2d(inside[0].x, inside[1].y)),
                 collision_type)
-            add_box_from_bb(
+            self.add_box_from_bb(
                 (Vec2d(inside[1].x, inside[0].y),
                  Vec2d(outside[1].x, inside[1].y)),
                 collision_type)
-            add_box_from_bb(
+            self.add_box_from_bb(
                 (Vec2d(outside[0].x, inside[1].y),
                  outside[1]),
                 collision_type)
@@ -1313,6 +1319,82 @@ class Level:
 
         make_ring(wall_rect, playfield_rect, CollisionType.WALL)
         make_ring(instadeath_rect, wall_rect, CollisionType.INSTADEATH)
+
+
+    def paint_unreachable_with_instadeath(self):
+        if not player:
+            return
+        # now:
+        # find all unreachable areas *inside* the map
+        # and fill them in with instadeath
+        occupiable = set()
+        for y in range(0, self.tiles.height):
+            y = self.tiles.height - y - 1
+            for x in range(0, self.tiles.width):
+                tile = self.collision_tile_at(x, y)
+                if not tile:
+                    occupiable.add((x, y))
+
+        reachable = set()
+        floodfill = set(((
+            int(player.position.x),
+            int(player.position.y),
+            ),))
+
+        directions = [
+            (+0, +1), # up
+            (+0, -1), # down
+            (-1, +0), # left
+            (+1, +0), # right
+            ]
+
+        i = 0
+        while floodfill:
+            i += 1
+            # print("starting floodfill", i, sorted(floodfill))
+            floodfill2 = set()
+            test_set = set(reachable)
+            test_set.update(floodfill)
+            for p in floodfill:
+                for direction in directions:
+                    test = (p[0] + direction[0], + p[1] + direction[1])
+                    if not self.collision_tile_at(test[0], test[1]):
+                        if test not in test_set:
+                            floodfill2.add(test)
+            reachable.update(floodfill)
+            floodfill = floodfill2
+
+        # unreachable is the set of all coordinates
+        # that don't have a collidable block on them
+        # but can't be reached from the starting position.
+        #
+        # we now create instadeath walls for all those
+        # tiles.  we do a quick RLE by sorting the
+        # coordinates and glomming together by runs of x.
+        unreachable = list(reversed(sorted(occupiable - reachable)))
+        # print("unreachable?", sorted(unreachable))
+        start = end = None
+        def finish():
+            nonlocal start
+            nonlocal end
+            if start and end:
+                rect = ( Vec2d(start), Vec2d(end[0] + 1, end[1] + 1) )
+                self.add_box_from_bb(rect, CollisionType.INSTADEATH)
+                start = end = None
+
+        while unreachable:
+            if not start:
+                start = end = unreachable.pop()
+                continue
+            candidate = unreachable[-1]
+            if ((candidate[0] == (end[0] + 1))
+                and (candidate[1] == end[1])):
+                unreachable.pop()
+                end = candidate
+                continue
+            finish()
+        finish()
+
 
     def on_draw(self):
         self.maprenderer.render()
