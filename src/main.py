@@ -74,12 +74,15 @@ PLAYER_GLOW = (0, 0.4, 0.5)
 lighting = LightRenderer(viewport)
 
 
-impact_sound = pyglet.resource.media('impact.wav', streaming=False)
-rail_sound = pyglet.resource.media('rail.wav', streaming=False)
-default_sound = laser_sound = pyglet.resource.media('laser.wav', streaming=False)
-laser2_sound = pyglet.resource.media('laser2.wav', streaming=False)
-bkill_sound = pyglet.resource.media('boss_killer.wav', streaming=False)
+def sfx(basename):
+    return pyglet.resource.media(basename + '.wav', streaming=False) 
 
+bkill_sound = sfx('boss_killer')
+default_sound = laser_sound = sfx('laser')
+impact_sound = sfx('impact')
+laser2_sound = sfx('laser2')
+powerup_sound = sfx('powerup')
+rail_sound = sfx('rail')
 
 
 music_player = None
@@ -766,6 +769,7 @@ class Level:
         robots.clear()
         bullets.clear()
         collectables.clear()
+        viewport.angle = 0
 
         self.load(self.basename)
 
@@ -1227,16 +1231,20 @@ class Level:
             mask=pymunk.ShapeFilter.ALL_MASKS ^ (CollisionType.ROBOT | CollisionType.ROBOT_BULLET))
 
         for (type1, type2, fn) in (
-            (CollisionType.PLAYER_BULLET, CollisionType.WALL,        on_player_bullet_hit_wall),
-            (CollisionType.PLAYER_BULLET, CollisionType.INSTADEATH,  on_player_bullet_hit_wall),
-            (CollisionType.PLAYER_BULLET, CollisionType.ROBOT,       on_player_bullet_hit_robot),
-            (CollisionType.ROBOT_BULLET,  CollisionType.WALL,        on_robot_bullet_hit_wall),
-            (CollisionType.ROBOT_BULLET,  CollisionType.INSTADEATH,  on_robot_bullet_hit_wall),
-            (CollisionType.ROBOT_BULLET,  CollisionType.PLAYER,      on_robot_bullet_hit_player),
+            (CollisionType.PLAYER,        CollisionType.COLLECTABLE,  on_player_got_collectable),
 
-            (CollisionType.ROBOT,         CollisionType.WALL,        on_robot_hit_wall),
-            (CollisionType.ROBOT,         CollisionType.INSTADEATH,  on_robot_hit_instadeath),
-            (CollisionType.PLAYER,        CollisionType.COLLECTABLE, on_player_got_collectable),
+            (CollisionType.ROBOT,         CollisionType.WALL,         on_robot_hit_wall),
+            (CollisionType.ROBOT,         CollisionType.INSTADEATH,   on_robot_hit_instadeath),
+
+            (CollisionType.PLAYER_BULLET, CollisionType.WALL,         on_player_bullet_hit_wall),
+            (CollisionType.PLAYER_BULLET, CollisionType.INSTADEATH,   on_player_bullet_hit_wall),
+            (CollisionType.PLAYER_BULLET, CollisionType.ROBOT,        on_player_bullet_hit_robot),
+
+            (CollisionType.ROBOT_BULLET,  CollisionType.WALL,         on_robot_bullet_hit_wall),
+            (CollisionType.ROBOT_BULLET,  CollisionType.INSTADEATH,   on_robot_bullet_hit_wall),
+            (CollisionType.ROBOT_BULLET,  CollisionType.PLAYER,       on_robot_bullet_hit_player),
+
+            (CollisionType.PLAYER_BULLET, CollisionType.ROBOT_BULLET, on_player_bullet_hit_robot_bullet),
             ):
             ch = self.space.add_collision_handler(int(type1), int(type2))
             ch.pre_solve = fn
@@ -2028,7 +2036,21 @@ def on_robot_bullet_hit_player(arbiter, space, data):
     return bullet_collision("player", arbiter)
 
 
+def on_player_bullet_hit_robot_bullet(arbiter, space, data):
+    bullets = [shape_to_bullet.get(x) for x in arbiter.shapes[0:2]]
+    if not all(bullets):
+        return True
 
+    if bullets[0].damage == bullets[1].damage:
+        bullets[0].close()
+        bullets[1].close()
+        return False
+
+    bullets.sort(key=lambda o:-o.damage)
+    # higher damage bullet is now at index 0
+    bullets[0].damage -= bullets[1].damage
+    bullets[1].close()
+    return False
 
 
 # each powerup gives you approximately 1.4x more power
@@ -2215,8 +2237,11 @@ class Player:
 
     def give_weapon(self, bit):
         assert 1 <= bit <= 4
-        game.powerups_available |= (1<<(bit-1))
-        self.toggle_weapon(bit)
+        mask = 1<<(bit-1)
+        if not game.powerups_available & mask: 
+            game.powerups_available |= mask
+            self.toggle_weapon(bit)
+            powerup_sound.play()
 
     def calculate_speed(self):
         if self.velocity != self.desired_velocity:
