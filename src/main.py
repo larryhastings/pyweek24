@@ -21,6 +21,8 @@ import pyglet.media
 import pyglet.window.key
 from pyglet import gl
 
+# The "pulse" audio driver was super crashy for us.
+# on Linux we recommend OpenAL (Debian package: libopenal1)
 pyglet.options['audio'] = ('openal', 'directsound', 'silent')
 pyglet.resource.path = ["gfx", "fonts", "sfx"]
 pyglet.resource.reindex()
