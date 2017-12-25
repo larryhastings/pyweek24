@@ -5,11 +5,12 @@ from enum import Enum, IntEnum
 import io
 import math
 from math import floor, atan2, degrees
+import operator
 import os
 import pprint
 import random
 import sys
-import operator
+import time
 
 # built from source
 from lepton import default_system
@@ -130,6 +131,9 @@ def vector_clamp(v, other):
     Return a new vector.
     """
     return Vec2d(_clamp(v.x, other.x), _clamp(v.y, other.y))
+
+def clever_time(t=None):
+    return time.strftime("%Y/%m/%d %H:%M:%S", t or time.localtime())
 
 
 class CollisionType(IntEnum):
@@ -1472,7 +1476,20 @@ class BulletBase:
     freelist = None
 
     def __init__(self):
-        pass
+        # self._log = collections.deque(maxlen=50)
+        self._log = []
+        self._closed = True
+
+    def log(self, *p):
+        a = ['[' + clever_time() + ']']
+        a.extend([str(o) for o in p])
+        text = " ".join(a)
+        self._log.append(text)
+
+    def dump_log(self):
+        for s in self._log:
+            print(s)
+
 
     @classmethod
     def fire(cls, shooter, vector, modifier):
@@ -1480,6 +1497,9 @@ class BulletBase:
             b = cls.freelist.pop()
         else:
             b = cls()
+        assert b._closed
+        b._closed = False
+        b.log("[1] add to bullets")
         bullets.add(b)
         if modifier.count == 3:
             rotated_ccw = vector.rotated(math.pi / 12) # 15 degrees
@@ -1505,6 +1525,12 @@ class BulletBase:
         self.spent = False
 
     def close(self):
+        if self._closed:
+            # self.log("!!!! DOUBLE CLOSE !!!!  Ignoring!")
+            # self.dump_log()
+            return
+        self._closed = True
+        # self.log("[3] remove from bullets")
         bullets.discard(self)
         self.__class__.finishing_tick.append(self)
 
@@ -1560,6 +1586,7 @@ class Bullet(BulletBase):
     freelist = []
 
     def __init__(self):
+        super().__init__()
         self.bounces = 0
         self.last_bounced_wall = None
 
@@ -1607,6 +1634,7 @@ class Bullet(BulletBase):
         self.initial_speed = self.velocity.length
 
         self.body.velocity = self.velocity
+        # self.log("[2] add to space")
         level.space.add(self.body, self.shape)
         self.create_visuals()
         self.on_update(0)
@@ -1656,12 +1684,14 @@ class Bullet(BulletBase):
         self.sprite.scale = self.energy
 
     def destroy_visuals(self):
-        self.sprite.delete()
-        self.sprite = None
+        if self.sprite:
+            self.sprite.delete()
+            self.sprite = None
         lighting.remove_light(self.light)
 
     def close(self):
         super().close()
+        # self.log("[4] remove from space")
         level.space.remove(self.body, self.shape)
         self.destroy_visuals()
 
@@ -1699,6 +1729,7 @@ class BossKillerBullet(Bullet):
     image = load_centered_image("white_circle.png")
 
     def __init__(self):
+        super().__init__()
         self.body = pymunk.Body(mass=1, moment=pymunk.inf, body_type=pymunk.Body.DYNAMIC)
         self.shape = pymunk.Circle(self.body, radius=self.radius, offset=(0, 0))
         self.position = (0, 0)
