@@ -14,7 +14,7 @@
    viewBox="0 0 256 256"
    id="svg4858"
    version="1.1"
-   inkscape:version="0.92.1 r15371"
+   inkscape:version="0.92.2 (5c3e80d, 2017-08-06)"
    sodipodi:docname="reticle.svg"
    inkscape:export-filename="/home/larry/src/pyweek24/gfx/reticle.png"
    inkscape:export-xdpi="29.961794"
@@ -29,10 +29,10 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="4"
-     inkscape:cx="-6.7853409"
+     inkscape:cx="-5.7853409"
      inkscape:cy="199.43094"
      inkscape:document-units="px"
-     inkscape:current-layer="g4815"
+     inkscape:current-layer="g4771"
      showgrid="true"
      units="px"
      inkscape:window-width="1920"
@@ -111,7 +111,7 @@
      inkscape:label="Reticle"
      inkscape:groupmode="layer"
      id="layer1"
-     style="display:inline"
+     style="display:none"
      transform="translate(0,-796.36216)">
     <g
        id="g4768">
@@ -152,5 +152,48 @@
          id="rect4716-3-6-7"
          style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:#ff4a37;stroke-width:6.07880926;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
     </g>
+  </g>
+  <g
+     transform="translate(0,-796.36216)"
+     style="display:inline"
+     id="g4771"
+     inkscape:groupmode="layer"
+     inkscape:label="Green Reticle">
+    <circle
+       r="42.366352"
+       cy="844.86218"
+       cx="47.5"
+       id="circle4759"
+       style="opacity:1;fill:none;fill-opacity:1;stroke:#39de00;stroke-width:5.26729441;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <rect
+       y="843.69446"
+       x="3.0394046"
+       height="0.62829757"
+       width="25.730589"
+       id="rect4761"
+       style="opacity:1;fill:none;fill-opacity:1;stroke:#39de00;stroke-width:6.07880926;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <rect
+       y="843.69446"
+       x="67.039406"
+       height="0.62829757"
+       width="25.730589"
+       id="rect4763"
+       style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:#39de00;stroke-width:6.07880926;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <rect
+       transform="rotate(90)"
+       y="-48.667702"
+       x="799.59216"
+       height="0.62829757"
+       width="25.730589"
+       id="rect4765"
+       style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:#39de00;stroke-width:6.07880926;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <rect
+       transform="rotate(90)"
+       y="-48.667702"
+       x="863.59216"
+       height="0.62829757"
+       width="25.730589"
+       id="rect4767"
+       style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:#39de00;stroke-width:6.07880926;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   </g>
 </svg>

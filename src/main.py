@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: UTF-8 -*-
 
 # system includes
 from enum import Enum, IntEnum
@@ -1859,7 +1860,7 @@ class RailgunBullet(BulletBase):
                 normal = collision.normal
                 break
         else:
-            return
+            return None, None
 
         ray_start = level.map_to_world(start_point)
         ray_end = level.map_to_world(hit)
@@ -1918,6 +1919,8 @@ class RailgunBullet(BulletBase):
                 modifier,
                 reflected=bool(i)
             )
+            if hit is None:
+                break
             start_point = hit
             vector = bounce_vector
 
@@ -2283,13 +2286,136 @@ class Player:
     def calculate_acceleration(self):
         new_acceleration = Vec2d(0, 0)
         handled = set()
-        for key in self.movement_keys:
-            if key in handled:
+        vectors = self.movement_vectors
+        if reticle.target_lock:
+            # when target locked, up and down move towards and away from
+            # the target respectively, and left and right circle-strafe
+            # around the target.  how do we implement that?
+            #
+            #             0   <-- reticle
+            #             |
+            #             |
+            #             |
+            #             |
+            #             |
+            #             ^   <-- player
+            #
+            # player movement is always relative to the player's rotation.
+            # when target locked, the player always rotates to face the reticle.
+            # so up and down are easy--when target locked, they're already
+            # pointed in the correct direction.  we get those for free.
+            #
+            # left and right are only slightly more complicated.  normally
+            # they move in a straight line perpendicular to the line from the
+            # player to the reticle:
+            #
+            #             0
+            #             |
+            #             |
+            #             |
+            #             |
+            #             |
+            #        -----^-----
+            #
+            # but when target-locked, we want them to rotate around 
+            # the circle with radius "reticle.magnitude", which is
+            # the vector from the reticle to the player:
+            #
+            #             0
+            #             |
+            #             |
+            #             |
+            #             |
+            #        .    |    .
+            #         `---^---'
+            #
+            # so really we want to calculate a vector which is a
+            # *chord* around this circle, with length player.top_speed.
+            # since movement vectors are expressed as unit vectors,
+            # we'll then adjust its length back down to a unit vector.
+            #
+            # left and right are symmetric, so let's just calculate
+            # left for now.
+            # 
+            #             a
+            #            /|
+            #           / |
+            #          /  |
+            #         /   |
+            #        c_   |
+            #          ``-b   ---------> 0π
+            #
+            # lowercase letters are points
+            #   a is the reticle, at point (0, reticle.magnitude)
+            #   b is the player, which is also the origin (0, 0)
+            #   c is where we want to move the player to when target locked
+            #     (pressing left)
+            #
+            # so we want to find "c" somehow.  well, what we really want is the
+            # vector c - b, which represents the relative vector of the player's
+            # movement while target-locked.  let's call that final_vector.
+            #
+            # two-letter ids are vectors describing sides
+            # they're the side opposite the point with that same letter
+            #   bc is length player.top_speed, that's how far we move
+            #   ab and ac are reticle.magnitude
+            #   ab is always straight up-down in this frame of reference
+            #      (0.5π radians)
+            #   (fwiw, cb and bc are different vectors, they're the same
+            #    length but rotated 180 degrees away from each other)
+            #
+            # we have the length of each of the three sides, so the shape
+            # of this triangle is unambiguous--we can use geometry to find
+            # the angles and go from there.  specifically, the law of cosines.
+            #
+            # how we're going to solve the problem, from a high level, is to
+            # find the vector that goes from a to c.  we add that to a and
+            # we get c.  we then subtract b and that gives us the vector bc.
+            # then we normalize that to a unit vector and we're done.
+            # (the movement vector for moving right is just this vector
+            # reflected around the y axis--as in, just negate x.)
+            #
+            # uppercase letters represent the angle prescribed by the two sides touching
+            # at that lowercase letter point, e.g. A is the angle between ab and ac.
+            # from there it's straightforward: take the vector ab, which is simply (0, -reticle.magnitude),
+            # and rotate it by -A.
+            #
+            # law of cosines, expressed for A, where here "ab" is the length of vector ab:
+            #     cos(A) = (ab**2 + ac**2 - bc**2) / (2*ab*bc)
+            # ab and ac are both length reticle.magnitude, and
+            # length of bc is player.top_speed, so:
+            #     cos(A) = (mag**2 + mag**2 - player.top_speed**2) / (2*mag**2)
+            # and now we apply the inverse of cos:
+            #     A = acos( ((2*mag**2) - player.top_speed**2) / (2*mag**2) )
+            #
+            # so here's how we solve it.
+            #   1. use law of cosines to calculate A
+            #   2. ab = (0, -reticle.magnitude)
+            #   3. ac = ab rotated by -A
+            #   4. c = a + ac
+            #   5. c = bc, because b is the origin
+            #   6. movement_vector = c.normalized()
+            #
+            vectors = dict(vectors)
+
+            mag_squared_times_2 = 2 * (reticle.magnitude ** 2)
+            player_speed_squared = (self.top_speed / self.acceleration_frames) ** 2
+            A = math.acos((mag_squared_times_2 - player_speed_squared) / mag_squared_times_2)
+            results = []
+            ab = Vec2d(0, -reticle.magnitude)
+            ac = ab.rotated(A)
+            c = ac + Vec2d(0, reticle.magnitude)
+            movement = c.normalized()
+            vectors[key.LEFT]  = movement
+            vectors[key.RIGHT] = Vec2d(-movement.x, movement.y)
+
+        for k in self.movement_keys:
+            if k in handled:
                 continue
-            vector = self.movement_vectors.get(key)
+            vector = vectors.get(k)
             new_acceleration += vector
-            handled.add(key)
-            handled.add(self.movement_opposites[key])
+            handled.add(k)
+            handled.add(self.movement_opposites[k])
 
         desired_velocity = new_acceleration.normalized() * self.top_speed
         desired_velocity.rotate(reticle.theta - math.pi / 2)
@@ -2299,8 +2425,6 @@ class Player:
 
     def on_game_state_change(self):
         if game.paused():
-            assert not self.pause_pressed_keys
-            assert not self.pause_released_keys
             return
 
         if not (self.pause_pressed_keys or self.pause_released_keys):
@@ -2401,6 +2525,7 @@ class Player:
         hud.set_lives(self.lives)
         self.body.position = level.start_position
         self.on_player_moved()
+        reticle.reset()
         self.sprite.visible = True
         reticle.sprite.visible = True
         level.space.add(self.body, self.shape)
@@ -2423,8 +2548,10 @@ class Player:
 
 class Reticle:
     def __init__(self):
-        self.image = load_centered_image("reticle.png")
-        self.sprite = pyglet.sprite.Sprite(self.image, batch=level.bullet_batch, group=level.foreground_sprite_group)
+        self.red_reticle = load_centered_image("reticle.png")
+        self.green_reticle = load_centered_image("green.reticle.png")
+        self.red_sprite = pyglet.sprite.Sprite(self.red_reticle, batch=level.bullet_batch, group=level.foreground_sprite_group)
+        self.green_sprite = pyglet.sprite.Sprite(self.green_reticle, batch=level.bullet_batch, group=level.foreground_sprite_group)
         self.position = Vec2d(0, 0)
         # how many pixels movement onscreen map to one revolution
         self.acceleration = 3000
@@ -2435,21 +2562,44 @@ class Reticle:
         self.magnitude = 3
         self.offset = Vec2d(0, self.magnitude)
 
+        self.reset()
+
     def close(self):
         self.sprite.delete()
         self.sprite = None
+
+    def reset(self):
+        self.theta = viewport.angle = 0
+        self.target_lock = False
+        self.sprite = self.red_sprite
+        self.red_sprite.visible = True
+        self.green_sprite.visible = False
+        self.on_refresh_sprite()
+
+    def on_refresh_sprite(self):
+        viewport.angle = self.theta - math.pi / 2
+        self.offset = Vec2d(self.magnitude, 0)
+        self.offset.rotate(self.theta)
+        if player:
+            player.sprite.rotation = self.theta
+
+    def toggle_target_lock(self):
+        self.target_lock = not self.target_lock
+        self.sprite = self.green_sprite if self.target_lock else self.red_sprite
+        self.red_sprite.visible = not self.target_lock
+        self.green_sprite.visible = self.target_lock
+        self.on_refresh_sprite()
 
     def on_mouse_motion(self, x, y, dx, dy):
         if game.paused():
             return
         if not player.alive:
             return
+        if self.target_lock:
+            return
         if dx:
             self.theta += dx * self.mouse_multiplier
-            viewport.angle = self.theta - math.pi / 2
-            self.offset = Vec2d(self.magnitude, 0)
-            self.offset.rotate(self.theta)
-            player.sprite.rotation = self.theta
+            self.on_refresh_sprite()
             player.calculate_acceleration()
             self.on_player_moved()
 
@@ -2459,7 +2609,12 @@ class Reticle:
         return self.on_mouse_motion(x, y, dx, dy)
 
     def on_player_moved(self):
-        self.position = Vec2d(player.position) + self.offset
+        if self.target_lock:
+            player_to_reticle = self.position - player.position
+            self.theta = math.atan2(player_to_reticle.y, player_to_reticle.x)
+            self.on_refresh_sprite()
+        else:
+            self.position = Vec2d(player.position) + self.offset
         sprite_coordinates = level.map_to_world(self.position)
         self.sprite.set_position(*sprite_coordinates)
 
@@ -3269,11 +3424,14 @@ def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
 
 
 LEFT_MOUSE_BUTTON = pyglet.window.mouse.LEFT
+RIGHT_MOUSE_BUTTON = pyglet.window.mouse.RIGHT
 
 @window.event
 def on_mouse_press(x, y, button, modifiers):
     if button == LEFT_MOUSE_BUTTON and player and player.alive:
         player.shooting = True
+    if button == RIGHT_MOUSE_BUTTON and reticle:
+        reticle.toggle_target_lock()
 
 @window.event
 def on_mouse_release(x, y, button, modifiers):
